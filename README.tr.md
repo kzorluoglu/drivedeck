@@ -15,6 +15,7 @@ Uygulama bir Android WebView'dır, arayüzün tamamı HTML/JS ile yazılmıştı
 - **Tasarruf modu** (varsayılan): 30 FPS sınırı, kenar yumuşatma yok, daha küçük çizim tamponu. Ayarlardan kapatılabilir.
 - **Navigasyon**, açık verilerle: arama (Photon / OpenStreetMap), rota (OSRM), sesli yönlendirme, otomatik yeniden
   hesaplama, kayıtlı yerler, yakında ve rota boyunca arama, hız limiti tabelası, hava durumu.
+- Google Maps gibi **navigasyon görünümü**: yönlendirme sırasında harita arabayı sokak seviyesinde takip eder, gidiş yönü yukarı bakacak şekilde döner ve tüm rotayı göstermek yerine hıza göre yakınlaşır. Şerit yönlendirmesi (OpenStreetMap `turn:lanes` verisinden) kavşaktan kısa süre önce haritada şerit çubuğu olarak ve 3D yolda ışıklı şeritler ve oklarla görünür (şematiktir, GPS arabanın hangi şeritte olduğunu bilemez).
 - **Dock**, Tesla'daki gibi: altında yazı olan büyük ikonlar, Apps düğmesi kısayolların hemen yanında.
   Bir uygulamaya uzun basarak dock'a ekleyebilir veya kaldırabilirsin.
 - **Asistan**: OpenRouter üzerinden çalışan bir yapay zekâ, yerleşik bir tarayıcıyı kullanır: arar, okur, tıklar, yazar,

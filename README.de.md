@@ -17,6 +17,7 @@ das 3D-Auto und Leaflet für die Karte.
 - **Navigation** auf offenen Daten: Suche (Photon / OpenStreetMap), Route (OSRM), Sprachausgabe der
   Abbiegehinweise, automatisches Neuberechnen, gespeicherte Orte, Suche in der Nähe und entlang der Route,
   Tempolimit-Schild, Wetter.
+- **Navigationsansicht** wie bei Google Maps: Während der Führung folgt die Karte dem Auto in Straßennähe, dreht sich so, dass die Fahrtrichtung oben ist, und zoomt mit der Geschwindigkeit, statt die ganze Route zu zeigen. Die Spurführung (aus OpenStreetMap `turn:lanes`) erscheint kurz vor einer Kreuzung als Spurleiste auf der Karte und als beleuchtete Spuren mit Pfeilen auf der 3D-Straße (schematisch, GPS kann nicht erkennen, in welcher Spur das Auto fährt).
 - **Dock** wie im Tesla: große Symbole mit Beschriftung, der Apps-Knopf steht direkt neben den Kurzbefehlen.
   Langer Druck auf eine App legt sie ins Dock oder nimmt sie heraus.
 - **Assistent**: Eine KI (über OpenRouter) bedient einen eingebauten Browser: suchen, lesen, klicken, tippen,

@@ -1759,3 +1759,55 @@ svg {
 .intro-dots i.on {
   background: var(--text);
 }
+
+/* Navigation camera: the map is rotated as a whole, so it is a square larger than the panel */
+
+#map-panel.heading-up #map {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: var(--mapd);
+  height: var(--mapd);
+  margin: calc(var(--mapd) / -2) 0 0 calc(var(--mapd) / -2);
+  transition: transform 1s linear;
+}
+
+/* Lane guidance */
+
+.lane-bar {
+  position: absolute;
+  z-index: 500;
+  top: 17vh;
+  left: 2vw;
+  display: flex;
+  gap: 0.6vh;
+  padding: 1vh;
+  border-radius: var(--radius);
+  background: rgba(22, 23, 26, 0.96);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.lane-bar[hidden] {
+  display: none;
+}
+
+.lane {
+  width: 6vh;
+  height: 7vh;
+  display: grid;
+  place-items: center;
+  border-radius: 1vh;
+  opacity: 0.4;
+}
+
+.lane.on {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.lane svg {
+  width: 5vh;
+  height: 5vh;
+  fill: #fff;
+  stroke: none;
+}

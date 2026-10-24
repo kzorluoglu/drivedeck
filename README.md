@@ -16,6 +16,7 @@ Leaflet for the map.
 - **Eco mode** (default): 30 FPS cap, no anti-aliasing, smaller render buffer. Can be switched off in the settings.
 - **Navigation** built on open data: search (Photon / OpenStreetMap), routing (OSRM), turn-by-turn voice
   guidance, automatic re-routing, saved places, nearby search along the route, speed-limit sign, weather.
+- **Navigation view** like Google Maps: during guidance the map follows the car at street level, turns so the direction of travel points up and zooms with the speed instead of showing the whole route. Lane guidance (from OpenStreetMap `turn:lanes`) appears shortly before a junction as a lane bar on the map and as lit-up lanes with arrows on the 3D road (schematic, GPS cannot tell which lane the car is in).
 - **Dock** like in a Tesla: big icons with captions, the Apps button sits next to the shortcuts. Long press an
   app to pin it to the dock or remove it.
 - **Assistant**: an LLM (via OpenRouter) that operates a built-in browser: it searches, reads, clicks, types,

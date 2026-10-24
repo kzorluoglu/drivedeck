@@ -84,16 +84,26 @@
     icon: L.divIcon({ className: 'car-marker', html: '<div class="arrow"></div>', iconSize: [30, 30] }),
   }).addTo(map);
   window.core.map = map;
+  window.core.carMarker = marker;
 
   let follow = true;
+  window.core.setFollow = (on) => {
+    follow = on;
+    $('recenter').hidden = on;
+  };
   map.on('dragstart', () => {
     follow = false;
     $('recenter').hidden = false;
+    window.core.navCamera.release();
   });
   $('recenter').addEventListener('click', () => {
     follow = true;
     $('recenter').hidden = true;
-    map.setView(marker.getLatLng(), 16);
+    if (window.core.navCamera.active()) {
+      window.core.navCamera.resume();
+    } else {
+      map.setView(marker.getLatLng(), 16);
+    }
   });
 
   function setHeading(deg) {
@@ -101,6 +111,7 @@
     if (arrow) {
       arrow.style.transform = `rotate(${deg}deg)`;
     }
+    window.core.lastHeading = deg;
     $('course').textContent = `${COMPASS[Math.round(deg / 45) % 8]} ${Math.round(deg)}°`;
   }
 
@@ -136,24 +147,32 @@
   }
 
   if ('geolocation' in navigator) {
-    navigator.geolocation.watchPosition((pos) => {
+    const onFix = (pos) => {
       const c = pos.coords;
       const latLng = [c.latitude, c.longitude];
       marker.setLatLng(latLng);
-      if (follow) {
-        map.setView(latLng, map.getZoom(), { animate: true });
-      }
       state.gpsSpeed = speedFromFix(pos);
-      if (c.heading != null && !Number.isNaN(c.heading)) {
-        setHeading(c.heading);
+      const course = c.heading != null && !Number.isNaN(c.heading) ? c.heading : null;
+      if (course !== null) {
+        setHeading(course);
+      }
+      if (follow) {
+        if (window.core.navCamera.active()) {
+          window.core.navCamera.update(marker.getLatLng(), course, state.gpsSpeed);
+        } else {
+          map.setView(latLng, map.getZoom(), { animate: true });
+        }
       }
       $('altitude').textContent = c.altitude != null ? `${Math.round(c.altitude)} m` : '--';
       $('accuracy').textContent = `±${Math.round(c.accuracy)} m`;
       $('gps-state').textContent = 'GPS';
       window.dispatchEvent(new CustomEvent('gps', { detail: c }));
-    }, (err) => {
+    };
+    navigator.geolocation.watchPosition(onFix, (err) => {
       $('gps-state').textContent = `GPS: ${err.message}`;
     }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 30000 });
+    // lets tests and tools feed a position
+    window.core.gpsFix = onFix;
   } else {
     $('gps-state').textContent = 'Kein GPS';
   }
@@ -364,6 +383,8 @@
   window.core.closeSheet = closeSheet;
 
   map.on('click', closeSheet);
+
+  window.addEventListener('lanehint', (e) => car.setLanes(e.detail));
 
   car.setPaint(state.paint);
   selectType(state.carType);

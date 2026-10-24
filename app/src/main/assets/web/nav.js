@@ -268,6 +268,9 @@
 
   // Long press on the map sets a destination directly.
   map.on('contextmenu', (e) => {
+    if (window.core.navCamera.rotated()) {
+      return;
+    }
     startRoute({ lat: e.latlng.lat, lng: e.latlng.lng, title: 'Markierter Punkt' });
   });
 
@@ -294,6 +297,8 @@
         exit: s.maneuver.exit,
         name: s.name,
         distance: s.distance,
+        // lane layout at the junction, left to right, only where OpenStreetMap has it
+        lanes: s.intersections[0].lanes || null,
       })),
     };
   }
@@ -333,9 +338,10 @@
     if (isReroute) {
       say('Route wird neu berechnet');
     } else {
-      map.fitBounds(L.latLngBounds(route.coords), { padding: [80, 80] });
       say(`Route nach ${destination.title}. ${spokenDuration(route.duration)}.`);
     }
+    // the camera follows the car at street level instead of showing the whole route
+    window.core.navCamera.start();
     update();
     return true;
   }
@@ -347,6 +353,8 @@
     $('nav-banner').hidden = true;
     $('nav-summary').hidden = true;
     $('search').hidden = false;
+    showLanes(null);
+    window.core.navCamera.stop();
     renderChips();
   }
 
@@ -355,6 +363,31 @@
     voice = !voice;
     $('nav-mute').textContent = voice ? 'Ton an' : 'Ton aus';
   });
+
+  // Lane guidance: shown shortly before a junction that has lane data with a lane to pick.
+  const LANE_ANGLE = {
+    'sharp left': -135, left: -90, 'slight left': -45, straight: 0, 'slight right': 45, right: 90, 'sharp right': 135, uturn: 180,
+  };
+  const LANE_SHOW_M = 500;
+  let laneKey = '';
+
+  function showLanes(lanes, toNext) {
+    const usable = lanes && toNext < LANE_SHOW_M && lanes.length >= 2
+      && lanes.some((l) => l.valid) && lanes.some((l) => !l.valid);
+    const key = usable ? JSON.stringify(lanes) : '';
+    if (key === laneKey) {
+      return;
+    }
+    laneKey = key;
+    const bar = $('lane-bar');
+    bar.hidden = !usable;
+    bar.innerHTML = usable ? lanes.map((lane) => {
+      const arrows = lane.indications.filter((i) => LANE_ANGLE[i] !== undefined)
+        .map((i) => `<path transform="rotate(${LANE_ANGLE[i]} 12 12)" d="M12 3l6 7h-4.5v11h-3V10H6z"/>`).join('');
+      return `<div class="lane ${lane.valid ? 'on' : ''}"><svg viewBox="0 0 24 24">${arrows}</svg></div>`;
+    }).join('') : '';
+    window.dispatchEvent(new CustomEvent('lanehint', { detail: usable ? lanes : null }));
+  }
 
   function update() {
     if (!route || !position) {
@@ -385,6 +418,7 @@
       say(closest <= 60 ? text : `In ${spokenDistance(toNext)} ${text.charAt(0).toLowerCase()}${text.slice(1)}`);
     }
 
+    showLanes(next.lanes, toNext);
     $('nav-dist').textContent = formatDistance(toNext);
     $('nav-text').textContent = text;
     const angle = next.type === 'arrive' ? 0 : ARROW_ANGLE[next.modifier] || 0;

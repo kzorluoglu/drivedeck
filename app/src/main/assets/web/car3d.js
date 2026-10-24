@@ -5,6 +5,8 @@
   const DASH_SPACING = 5;
   const DASH_ROWS = 30;
   const DASH_ROWS_ECO = 14;
+  const LANE_WIDTH = 3.8;
+  const MAX_LANES = 6;
   const WHEEL_NAME = /^wheel-(front|back)-(left|right)$/;
   const DOOR_NAME = /^door-(left|right)$/;
   const DOOR_OPEN_RAD = 1.22;
@@ -96,21 +98,105 @@
 
     const lineMat = new THREE.MeshBasicMaterial({ color: 0x8e8f97 });
     const dashGeo = new THREE.BoxGeometry(2, 0.01, 0.1);
-    const dashes = [];
-    for (let i = 0; i < (eco ? DASH_ROWS_ECO : DASH_ROWS); i++) {
-      [-1.9, 1.9].forEach((z) => {
-        const dash = new THREE.Mesh(dashGeo, lineMat);
-        dash.position.set(0, 0.01, z);
-        dash.userData.baseX = -20 + i * DASH_SPACING;
-        scene.add(dash);
-        dashes.push(dash);
+    const edgeGeo = new THREE.BoxGeometry(400, 0.01, 0.1);
+    const roadGroup = new THREE.Group();
+    scene.add(roadGroup);
+    let dashes = [];
+
+    // lane dividers and road edges for a road with n lanes, the car stays in the middle of it
+    function buildRoad(n) {
+      roadGroup.clear();
+      dashes = [];
+      for (let k = 1; k < n; k++) {
+        const z = (k - n / 2) * LANE_WIDTH;
+        for (let i = 0; i < (eco ? DASH_ROWS_ECO : DASH_ROWS); i++) {
+          const dash = new THREE.Mesh(dashGeo, lineMat);
+          dash.position.set(0, 0.01, z);
+          dash.userData.baseX = -20 + i * DASH_SPACING;
+          roadGroup.add(dash);
+          dashes.push(dash);
+        }
+      }
+      [-1, 1].forEach((side) => {
+        const edge = new THREE.Mesh(edgeGeo, lineMat);
+        edge.position.set(0, 0.01, (side * n * LANE_WIDTH) / 2);
+        roadGroup.add(edge);
       });
     }
-    [-5.7, 5.7].forEach((z) => {
-      const edge = new THREE.Mesh(new THREE.BoxGeometry(400, 0.01, 0.1), lineMat);
-      edge.position.set(0, 0.01, z);
-      scene.add(edge);
-    });
+    buildRoad(3);
+
+    // Lane guidance: the lanes of the next junction ahead of the car, the usable ones lit up.
+    // Schematic only, GPS cannot tell which lane the car is in.
+    const hintGroup = new THREE.Group();
+    scene.add(hintGroup);
+    const LANE_ANGLE = {
+      'sharp left': -135, left: -90, 'slight left': -45, straight: 0, 'slight right': 45, right: 90, 'sharp right': 135, uturn: 180,
+    };
+
+    function arrowTexture(indications, valid) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = valid ? '#ffffff' : 'rgba(255,255,255,0.45)';
+      indications.filter((i) => LANE_ANGLE[i] !== undefined).forEach((i) => {
+        ctx.save();
+        ctx.translate(64, 150);
+        ctx.rotate((LANE_ANGLE[i] * Math.PI) / 180);
+        ctx.beginPath();
+        ctx.moveTo(0, -95);
+        ctx.lineTo(42, -40);
+        ctx.lineTo(13, -40);
+        ctx.lineTo(13, 80);
+        ctx.lineTo(-13, 80);
+        ctx.lineTo(-13, -40);
+        ctx.lineTo(-42, -40);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      });
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function setLanes(lanes) {
+      hintGroup.children.slice().forEach((child) => {
+        hintGroup.remove(child);
+        child.traverse((node) => {
+          if (node.material) {
+            node.material.map && node.material.map.dispose();
+            node.material.dispose();
+          }
+        });
+      });
+      const n = lanes ? Math.min(lanes.length, MAX_LANES) : 3;
+      buildRoad(n);
+      if (lanes) {
+        lanes.slice(0, MAX_LANES).forEach((lane, k) => {
+          const z = (k + 0.5 - n / 2) * LANE_WIDTH;
+          if (lane.valid) {
+            const strip = new THREE.Mesh(
+              new THREE.PlaneGeometry(40, LANE_WIDTH - 0.5),
+              new THREE.MeshBasicMaterial({ color: 0x3e6ae1, transparent: true, opacity: 0.4, depthWrite: false }),
+            );
+            strip.rotation.x = -Math.PI / 2;
+            strip.position.set(24, 0.015, z);
+            hintGroup.add(strip);
+          }
+          // canvas up is the driving direction, canvas right is the right-hand side
+          const decal = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.2, 4.4),
+            new THREE.MeshBasicMaterial({ map: arrowTexture(lane.indications, lane.valid), transparent: true, depthWrite: false }),
+          );
+          decal.rotation.x = -Math.PI / 2;
+          const holder = new THREE.Group();
+          holder.rotation.y = -Math.PI / 2;
+          holder.position.set(11, 0.03, z);
+          holder.add(decal);
+          hintGroup.add(holder);
+        });
+      }
+      dirty = true;
+    }
 
     const shadow = createGroundShadow();
     scene.add(shadow);
@@ -272,6 +358,7 @@
     return {
       setType,
       setPaint,
+      setLanes,
       hasDoors() {
         return Boolean(car && car.doors.length);
       },
