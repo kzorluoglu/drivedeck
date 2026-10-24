@@ -23,12 +23,30 @@ Uygulama bir Android WebView'dır, arayüzün tamamı HTML/JS ile yazılmıştı
   Almanca, Türkçe ve İngilizce sesli giriş ve çıkış. Şifreleri uygulama kendisi sayfaya yazar, model hiç görmez.
 - **Telefonla eşleştirme**: Kutu bir QR kodu gösterir, telefon kutunun sunduğu bir sayfayı açar ve API anahtarını,
   girişleri, hedefleri ve bağlantıları gönderir. Her şey uçtan uca şifrelidir (AES-GCM) ve Android Keystore anahtarıyla saklanır.
+- **Her şey için tek dil**: Almanca, Türkçe veya İngilizce, ilk açılışta bir kere seçilir. Arayüz, sesli yönlendirme, asistan, asistanın promptları ve telefon sayfası bu dili izler. Sonradan Uygulamalar → Ayarlar → Dil ile değişir.
+- **OpenRouter ile ses**: konuşma tanıma (`openai/gpt-4o-mini-transcribe`) ve sesli okuma (`openai/gpt-4o-mini-tts`) kutunun konuşma servisleri yerine OpenRouter anahtarınla çalışır. Anahtar yoksa veya servise ulaşılamazsa Android sesi devreye girer. Uygulamalar → Ayarlar → Ses ile değişir. Okunan cümleler kutuda önbelleğe alınır.
 - Arabanın yön tuşlarıyla kullanılan **sanal fare** (aşağıya bak).
 - Notlar, OBD göstergesi (Bluetooth üzerinden ELM327), 2048, Snake, Karaoke, Çizim.
 - İlk açılışta **tanıtım turu** (Almanca, Türkçe, İngilizce), ok tuşları ve orta tuşla da kullanılır. Tekrar açmak için Apps → Einstellungen → Einführung.
 - Sürüş kilidi (isteğe bağlı, varsayılan açık, Apps → Einstellungen → Fahrsperre ile kapatılır): 5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır.
 
-![Sürüş](docs/img/driving.gif)
+## Demolar
+
+Emülatörde kaydedildi. Üç asistan demosunda dil modelinin yerini kısa bir senaryo alıyor, yani OpenRouter anahtarı olmadan çalışıyorlar. Arkadaki araçlar (tarayıcı, YouTube, arama, notlar) gerçek.
+
+| İlk açılış | Navigasyon |
+|---|---|
+| ![İlk açılış](docs/img/demo-intro.gif) | ![Navigasyon](docs/img/demo-navigation.gif) |
+
+Navigasyon: harita arabayı takip eder, gidiş yönüyle döner ve kavşaktan önce şeritleri gösterir (simüle GPS ile sürülen bir Berlin rotası).
+
+| Asistan: YouTube videosu aç | Asistan: web'de ara |
+|---|---|
+| ![YouTube](docs/img/demo-youtube.gif) | ![Arama](docs/img/demo-search.gif) |
+
+| Asistan: not al | Sürüş |
+|---|---|
+| ![Not](docs/img/demo-notes.gif) | ![Sürüş](docs/img/driving.gif) |
 
 ## Sanal fare
 
@@ -99,7 +117,7 @@ app/src/main/assets/web/
 
 ## Durum
 
-Emülatörde denendi: arayüz, navigasyon, eşleştirme, notlar, zamanlayıcılar, düzenler, sanal fare. Gerçek donanımda henüz
+Emülatörde denendi: arayüz, navigasyon, eşleştirme, notlar, zamanlayıcılar, düzenler, sanal fare. OpenRouter ile konuşma tanıma ve sesli okuma sadece isteğe kadar denendi: istek biçimi dokümantasyona uyuyor, geçersiz anahtar ele alınıyor ve sistem sesi devreye giriyor. Gerçek bir anahtarla denenmedi. Gerçek donanımda henüz
 denenmedi: ses tanıma (Google konuşma servisi gerekir), OBD, hız limiti tabelası ve yakında arama (herkese açık
 Overpass sunucularına bağlı).
 

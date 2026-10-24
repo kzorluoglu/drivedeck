@@ -27,12 +27,30 @@ das 3D-Auto und Leaflet für die Karte.
 - **Handy-Kopplung**: Die Box zeigt einen QR-Code, das Handy öffnet eine von der Box ausgelieferte Seite und sendet
   API-Schlüssel, Anmeldungen, Ziele und Links. Alles ist Ende-zu-Ende verschlüsselt (AES-GCM) und wird mit einem
   Android-Keystore-Schlüssel gespeichert.
+- **Eine Sprache für alles**: Deutsch, Türkisch oder Englisch, einmal beim ersten Start gewählt. Oberfläche, Sprachführung, Assistent, seine Prompts und die Handy-Seite folgen ihr. Später änderbar unter Apps → Einstellungen → Sprache.
+- **Stimme über OpenRouter**: Spracherkennung (`openai/gpt-4o-mini-transcribe`) und Sprachausgabe (`openai/gpt-4o-mini-tts`) laufen über deinen OpenRouter-Schlüssel statt über die Sprachdienste der Box. Ohne Schlüssel oder wenn der Dienst nicht erreichbar ist, springt die Android-Stimme ein. Umschalten unter Apps → Einstellungen → Stimme. Gesprochene Sätze werden auf der Box zwischengespeichert.
 - **Virtuelle Maus**, gesteuert mit den Pfeiltasten des Autos (siehe unten).
 - Notizen, OBD-Anzeige (ELM327 über Bluetooth), 2048, Snake, Karaoke, Malen.
 - **Einführung** beim ersten Start (Deutsch, Türkisch, Englisch), auch mit Pfeiltasten und Mitteltaste bedienbar. Erneut öffnen unter Apps → Einstellungen → Einführung.
 - Fahrsperre (optional, standardmäßig an, abschaltbar unter Apps → Einstellungen → Fahrsperre): Über 5 km/h sind Browser, Spiele und Texteingabe gesperrt, nur Sprache bleibt.
 
-![Fahrt](docs/img/driving.gif)
+## Demos
+
+Im Emulator aufgenommen. Bei den drei Assistenten-Demos ist das Sprachmodell durch ein kurzes Drehbuch ersetzt, sie laufen also ohne OpenRouter-Schlüssel. Die Werkzeuge dahinter (Browser, YouTube, Suche, Notizen) sind die echten.
+
+| Erster Start | Navigation |
+|---|---|
+| ![Erster Start](docs/img/demo-intro.gif) | ![Navigation](docs/img/demo-navigation.gif) |
+
+Navigation: Die Karte folgt dem Auto, dreht sich mit der Fahrtrichtung und zeigt vor einer Kreuzung die Spuren (eine Berliner Route mit simuliertem GPS).
+
+| Assistent: YouTube-Video abspielen | Assistent: im Web suchen |
+|---|---|
+| ![YouTube](docs/img/demo-youtube.gif) | ![Suche](docs/img/demo-search.gif) |
+
+| Assistent: Notiz machen | Fahrt |
+|---|---|
+| ![Notiz](docs/img/demo-notes.gif) | ![Fahrt](docs/img/driving.gif) |
 
 ## Virtuelle Maus
 
@@ -104,7 +122,7 @@ app/src/main/assets/web/
 
 ## Stand
 
-Im Emulator getestet: Oberfläche, Navigation, Kopplung, Notizen, Timer, Layouts, virtuelle Maus. Noch nicht auf
+Im Emulator getestet: Oberfläche, Navigation, Kopplung, Notizen, Timer, Layouts, virtuelle Maus. Spracherkennung und Sprachausgabe über OpenRouter sind nur bis zur Anfrage getestet: Das Anfrageformat folgt der Dokumentation, ein ungültiger Schlüssel wird abgefangen und die Systemstimme springt ein. Mit einem echten Schlüssel sind sie nicht getestet. Noch nicht auf
 echter Hardware getestet: Spracherkennung (braucht den Google-Sprachdienst), OBD, Tempolimit-Schild und Suche in
 der Nähe (hängt von den öffentlichen Overpass-Servern ab).
 

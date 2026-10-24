@@ -148,6 +148,9 @@
         return phrase('Am Ende der Straße {0} abbiegen', dir);
       case 'continue':
       case 'new name':
+        if (step.modifier === 'uturn') {
+          return phrase('Wenden');
+        }
         return !step.modifier || step.modifier === 'straight' ? phrase('Weiter geradeaus') : phrase('{0} halten', capitalize(dir));
       default:
         if (step.modifier === 'uturn') {

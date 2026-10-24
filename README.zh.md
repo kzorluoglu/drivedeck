@@ -21,12 +21,30 @@
   密码由应用自己填入网页，模型永远看不到。
 - **手机配对**：盒子显示二维码，手机打开由盒子提供的页面，并发送 API 密钥、登录信息、目的地和链接。
   全程端到端加密（AES-GCM），并用 Android Keystore 密钥保存。
+- **全部使用同一种语言**：德语、土耳其语或英语，首次启动时选择一次。界面、语音导航、助手、助手的提示词和手机页面都会跟随。之后可在 Apps → Einstellungen → Sprache 中更改。
+- **通过 OpenRouter 的语音**：语音识别（`openai/gpt-4o-mini-transcribe`）和语音播报（`openai/gpt-4o-mini-tts`）使用你的 OpenRouter 密钥，而不是盒子自带的语音服务。没有密钥或服务不可用时，改用 Android 的语音。可在 Apps → Einstellungen → Stimme 中切换。播报过的句子会缓存在盒子上。
 - **虚拟鼠标**，用车上的方向键控制（见下文）。
 - 笔记、OBD 仪表（通过蓝牙连接 ELM327）、2048、贪吃蛇、卡拉 OK、画图。
 - 首次启动时显示**介绍导览**（德语、土耳其语、英语），也可用方向键和中间键操作。可在 Apps → Einstellungen → Einführung 中重新打开。
 - 行车锁定（可选，默认开启，可在 Apps → Einstellungen → Fahrsperre 中关闭）：时速超过 5 公里时，浏览器、游戏和文字输入被锁定，只保留语音。
 
-![行驶](docs/img/driving.gif)
+## 演示
+
+在模拟器中录制。三个助手演示中，语言模型被一段简短的脚本代替，所以无需 OpenRouter 密钥即可运行；背后的工具（浏览器、YouTube、搜索、笔记）是真实的。
+
+| 首次启动 | 导航 |
+|---|---|
+| ![首次启动](docs/img/demo-intro.gif) | ![导航](docs/img/demo-navigation.gif) |
+
+导航：地图跟随车辆，随行驶方向旋转，并在路口前显示车道（用模拟 GPS 行驶的柏林路线）。
+
+| 助手：播放 YouTube 视频 | 助手：网络搜索 |
+|---|---|
+| ![YouTube](docs/img/demo-youtube.gif) | ![搜索](docs/img/demo-search.gif) |
+
+| 助手：记笔记 | 行驶 |
+|---|---|
+| ![笔记](docs/img/demo-notes.gif) | ![行驶](docs/img/driving.gif) |
 
 ## 虚拟鼠标
 
@@ -95,7 +113,7 @@ app/src/main/assets/web/
 
 ## 状态
 
-已在模拟器中测试：界面、导航、配对、笔记、计时器、布局、虚拟鼠标。尚未在真机上测试：语音识别（需要 Google 语音服务）、
+已在模拟器中测试：界面、导航、配对、笔记、计时器、布局、虚拟鼠标。通过 OpenRouter 的语音识别和语音播报只测试到了请求这一步：请求格式符合文档，无效密钥会被处理，并改用系统语音。尚未使用真实密钥测试。尚未在真机上测试：语音识别（需要 Google 语音服务）、
 OBD、限速标志和附近搜索（取决于公共 Overpass 服务器）。
 
 ## 许可与来源

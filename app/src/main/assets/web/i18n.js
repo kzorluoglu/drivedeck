@@ -170,6 +170,12 @@
     ['Wischen zum Schieben', 'Kaydırarak oyna', 'Swipe to move'],
     ['Neu starten', 'Yeniden başlat', 'Restart'],
     ['Getrennt', 'Bağlı değil', 'Disconnected'],
+    ['Fehler: {0}', 'Hata: {0}', 'Error: {0}'],
+    ['Unerwartete Antwort vom Modell', 'Modelden beklenmeyen cevap', 'Unexpected answer from the model'],
+    ['Fenster', 'Pencere', 'Window'],
+    ['Halb', 'Yarım', 'Half'],
+    ['Voll', 'Tam', 'Full'],
+    ['Notiz', 'Not', 'Note'],
     // lane bar, intro, language picker
     ['Überspringen', 'Atla', 'Skip'],
   ];

@@ -412,6 +412,7 @@
         <button data-layout="window">Fenster</button>
         <button data-layout="split">Halb</button>
         <button data-act="close" class="danger">&times;</button>`;
+      window.i18n.apply(controls);
       controls.addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (b && b.dataset.layout) {
@@ -700,7 +701,7 @@
           case 'notes_read':
             return window.core.notes.read(Number(args.id));
           case 'notes_add':
-            say('tool', 'Notiz');
+            say('tool', window.i18n.t('Notiz'));
             return window.core.notes.add(String(args.text));
           case 'notes_append':
             say('tool', 'Notiz +');
@@ -850,7 +851,7 @@
             } catch (e) {
               detail = detail || `HTTP ${res.status}`;
             }
-            say('err', `Fehler: ${detail}`);
+            say('err', window.i18n.t('Fehler: {0}', detail));
             return;
           }
           let message;
@@ -863,7 +864,7 @@
               renderCost();
             }
           } catch (e) {
-            say('err', 'Unerwartete Antwort vom Modell');
+            say('err', window.i18n.t('Unerwartete Antwort vom Modell'));
             return;
           }
           history.push({ role: 'assistant', content: message.content || '', tool_calls: message.tool_calls });

@@ -25,12 +25,30 @@ Leaflet for the map.
   reach the model.
 - **Phone pairing**: the box shows a QR code, the phone opens a page served by the box and sends the API key,
   logins, destinations and links. Everything is end-to-end encrypted (AES-GCM) and stored with an Android Keystore key.
+- **One language for everything**: German, Turkish or English, chosen once at the first start. The interface, the turn-by-turn voice, the assistant, its prompts and the phone page all follow it. Change it later under Apps → Settings → Language.
+- **Voice through OpenRouter**: speech recognition (`openai/gpt-4o-mini-transcribe`) and speech output (`openai/gpt-4o-mini-tts`) run through your OpenRouter key instead of the speech services of the box. Without a key, or when the service is unreachable, the voice of Android takes over. Switch under Apps → Settings → Voice. Spoken phrases are cached on the box.
 - **Virtual mouse** driven by the arrow keys of the car (see below).
 - Notes, OBD dashboard (ELM327 over Bluetooth), 2048, Snake, Karaoke, Paint.
 - **Intro tour** on first start (German, Turkish, English), arrow keys and the centre key work too. Reopen it under Apps → Einstellungen → Einführung.
 - Driving lock (optional, on by default; switch it off under Apps → Einstellungen → Fahrsperre): above 5 km/h browser, games and text input are locked, only voice remains.
 
-![Driving](docs/img/driving.gif)
+## Demos
+
+Recorded in the emulator. For the three assistant demos the language model is replaced by a short script, so they run without an OpenRouter key; the tools behind them (browser, YouTube, search, notes) are the real ones.
+
+| First start | Navigation |
+|---|---|
+| ![First start](docs/img/demo-intro.gif) | ![Navigation](docs/img/demo-navigation.gif) |
+
+Navigation: the map follows the car, turns with the direction of travel and shows the lanes before a junction (a Berlin route driven with simulated GPS).
+
+| Assistant: play a YouTube video | Assistant: search the web |
+|---|---|
+| ![YouTube](docs/img/demo-youtube.gif) | ![Search](docs/img/demo-search.gif) |
+
+| Assistant: take a note | Driving |
+|---|---|
+| ![Notes](docs/img/demo-notes.gif) | ![Driving](docs/img/driving.gif) |
 
 ## Virtual mouse
 
@@ -101,7 +119,7 @@ app/src/main/assets/web/
 
 ## Status
 
-Tested in the emulator: UI, navigation, pairing, notes, timers, layouts, virtual mouse. Not yet tested on real
+Tested in the emulator: UI, navigation, pairing, notes, timers, layouts, virtual mouse. Speech recognition and speech output through OpenRouter were only tested up to the request: the request format follows the documentation, an invalid key is handled and the system voice takes over. They were not tested with a real key. Not yet tested on real
 hardware: speech recognition (needs the Google speech service), OBD, the speed-limit sign and nearby search
 (depends on the public Overpass servers).
 
