@@ -112,7 +112,7 @@
         }
         render();
         if (!canMove()) {
-          window.core.toast(`Spiel vorbei, ${score} Punkte`);
+          window.core.toast(window.i18n.t('Spiel vorbei, {0} Punkte', score));
         }
       }
 

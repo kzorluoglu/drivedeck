@@ -4,7 +4,6 @@
   // bump the version when the tour gets new slides worth showing again
   const SEEN_KEY = 'introSeen';
   const SEEN_VERSION = '1';
-  const LANG_KEY = 'introLang';
   const core = window.core;
 
   const ICONS = {
@@ -37,12 +36,12 @@
       slides: [
         ['welcome', "DriveDeck'e hoş geldin", 'Tesla arayüzü tarzında kokpit: 3D araç, navigasyon, bir yapay zekâ asistanı ve küçük uygulamalar. Birkaç adımda neler yapabildiğini göreceksin.'],
         ['car', 'Aracın', 'Sol alttaki araba simgesine dokunarak araç tipini ve boya rengini seç. Dururken arabaya dokunursan makas kapılar açılır. Sürerken tekerlekler GPS hızıyla döner.'],
-        ['nav', 'Navigasyon', '"Navigieren" alanına dokun ve bir hedef yaz. Rota sesli yönlendirmeyle takip edilir, sapınca yeniden hesaplanır. Yerleri kaydedebilir, yakındaki ve rota üzerindeki benzinlik ya da şarj istasyonlarını bulabilirsin.'],
-        ['dock', 'Dock ve uygulamalar', 'Altta kısayolların var. "Apps" ile tüm uygulamaları ve ayarları görürsün. Bir uygulamaya uzun basarak onu dock\'a ekleyebilir ya da kaldırabilirsin.'],
+        ['nav', 'Navigasyon', '"Navigasyon" alanına dokun ve bir hedef yaz. Rota sesli yönlendirmeyle takip edilir, sapınca yeniden hesaplanır. Yerleri kaydedebilir, yakındaki ve rota üzerindeki benzinlik ya da şarj istasyonlarını bulabilirsin.'],
+        ['dock', 'Dock ve uygulamalar', 'Altta kısayolların var. "Uygulamalar" ile tüm uygulamaları ve ayarları görürsün. Bir uygulamaya uzun basarak onu dock\'a ekleyebilir ya da kaldırabilirsin.'],
         ['assistant', 'Asistan', 'İstediğini söyle ya da yaz: yer ara, navigasyon başlat, not ve zamanlayıcı, hava durumu, müzik ve video. Asistan yerleşik bir tarayıcıyı kullanır. Şifreni hiçbir zaman görmez.'],
         ['phone', 'Telefonu eşleştir', 'Asistanda kutu bir QR kodu gösterir. Telefonla tara (aynı Wi-Fi ya da hotspot), OpenRouter anahtarını gir. Sonra hedefleri ve bağlantıları doğrudan arabaya gönderebilirsin.'],
-        ['mouse', 'Sanal fare', 'Apps → Einstellungen → Maus ile aç ya da yön tuşunun orta tuşunu yaklaşık bir saniye basılı tut. Ok tuşları imleci oynatır, orta tuş tıklar, orta tuşu basılı tutmak sürükler, hızlı iki kez basmak kaydırmaya geçirir.'],
-        ['lock', 'Güvenli sürüş', '5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır (isteğe bağlı: Apps → Einstellungen → Fahrsperre). Bu tanıtıma istediğin zaman Apps → Einstellungen → Einführung ile ulaşabilirsin.'],
+        ['mouse', 'Sanal fare', 'Uygulamalar → Ayarlar → Fare ile aç ya da yön tuşunun orta tuşunu yaklaşık bir saniye basılı tut. Ok tuşları imleci oynatır, orta tuş tıklar, orta tuşu basılı tutmak sürükler, hızlı iki kez basmak kaydırmaya geçirir.'],
+        ['lock', 'Güvenli sürüş', '5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır (isteğe bağlı: Uygulamalar → Ayarlar → Sürüş kilidi). Bu tanıtıma istediğin zaman Uygulamalar → Ayarlar → Tanıtım ile ulaşabilirsin.'],
       ],
     },
     en: {
@@ -50,12 +49,12 @@
       slides: [
         ['welcome', 'Welcome to DriveDeck', 'A Tesla-style cockpit: 3D car, navigation, an AI assistant and small apps. A few steps will show you what it can do.'],
         ['car', 'Your car', 'Tap the car icon at the bottom left to pick the car type and paint colour. When parked, tap the car to open the scissor doors. While driving, the wheels turn with the GPS speed.'],
-        ['nav', 'Navigation', 'Tap "Navigieren" and enter a destination. The route is guided with voice prompts and recalculated when you leave it. You can save places and find fuel stations or chargers nearby and along the route.'],
+        ['nav', 'Navigation', 'Tap "Navigate" and enter a destination. The route is guided with voice prompts and recalculated when you leave it. You can save places and find fuel stations or chargers nearby and along the route.'],
         ['dock', 'Dock and apps', 'Your shortcuts sit at the bottom. "Apps" shows every app and the settings. Long press an app to pin it to the dock or remove it.'],
         ['assistant', 'The assistant', 'Speak or type what you need: find places, navigate, notes and timers, weather, music and video. The assistant operates a built-in browser. It never sees your passwords.'],
         ['phone', 'Pair your phone', 'In the assistant the box shows a QR code. Scan it with your phone (same Wi-Fi or hotspot), enter your OpenRouter key, and later send destinations and links straight to the car.'],
-        ['mouse', 'Virtual mouse', 'Turn it on under Apps → Einstellungen → Maus, or hold the centre key of the direction pad for about a second. Arrow keys move the pointer, centre clicks, holding centre drags, pressing centre twice quickly switches to scrolling.'],
-        ['lock', 'Safe on the road', 'Above 5 km/h the browser, games and text input are locked, only voice remains (optional: Apps → Einstellungen → Fahrsperre). You can open this tour any time under Apps → Einstellungen → Einführung.'],
+        ['mouse', 'Virtual mouse', 'Turn it on under Apps → Settings → Mouse, or hold the centre key of the direction pad for about a second. Arrow keys move the pointer, centre clicks, holding centre drags, pressing centre twice quickly switches to scrolling.'],
+        ['lock', 'Safe on the road', 'Above 5 km/h the browser, games and text input are locked, only voice remains (optional: Apps → Settings → Driving lock). You can open this tour any time under Apps → Settings → Intro tour.'],
       ],
     },
   };
@@ -86,7 +85,7 @@
     const last = index === t.slides.length - 1;
     overlay.innerHTML = `
       <div class="intro-top">
-        <div class="intro-langs">${Object.keys(TEXT).map((k) => `<button data-lang="${k}" class="${k === lang ? 'on' : ''}">${TEXT[k].name}</button>`).join('')}</div>
+        <div></div>
         <button class="intro-skip" data-act="close">${last ? '' : t.skip}</button>
       </div>
       <div class="intro-slide">
@@ -136,8 +135,7 @@
     if (overlay) {
       return;
     }
-    const stored = read(LANG_KEY) || read('assistantLang');
-    lang = TEXT[stored] ? stored : 'de';
+    lang = TEXT[window.i18n.lang] ? window.i18n.lang : 'de';
     index = 0;
     overlay = document.createElement('div');
     overlay.id = 'intro';
@@ -146,11 +144,7 @@
       if (!btn) {
         return;
       }
-      if (btn.dataset.lang) {
-        lang = btn.dataset.lang;
-        write(LANG_KEY, lang);
-        render();
-      } else if (btn.dataset.act === 'next') {
+      if (btn.dataset.act === 'next') {
         step(1);
       } else if (btn.dataset.act === 'back') {
         step(-1);
@@ -164,10 +158,59 @@
     render();
   }
 
+  // First start: the language of the whole app is chosen once, then the page reloads in it.
+  function pickLanguage() {
+    let selected = 0;
+    const names = { de: 'Deutsch', tr: 'Türkçe', en: 'English' };
+    const picker = document.createElement('div');
+    picker.id = 'intro';
+    function paint() {
+      picker.innerHTML = `
+        <div></div>
+        <div class="intro-slide">
+          <div class="intro-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></div>
+          <h1>Sprache · Dil · Language</h1>
+          <div class="intro-choices">${window.i18n.langs.map((k, i) => `<button class="intro-btn ${i === selected ? 'primary' : ''}" data-pick="${k}">${names[k]}</button>`).join('')}</div>
+        </div>
+        <div></div>`;
+    }
+    function choose(k) {
+      window.i18n.setLang(k);
+      location.reload();
+    }
+    picker.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pick]');
+      if (btn) {
+        choose(btn.dataset.pick);
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!document.body.contains(picker)) {
+        return;
+      }
+      const move = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (move) {
+        selected = (selected + move + window.i18n.langs.length) % window.i18n.langs.length;
+        paint();
+      } else if (e.key === 'Enter') {
+        choose(window.i18n.langs[selected]);
+      } else {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+    paint();
+    document.body.append(picker);
+    document.body.classList.add('intro-open');
+  }
+
   core.intro = { open };
 
   window.addEventListener('load', () => {
-    if (read(SEEN_KEY) !== SEEN_VERSION) {
+    if (!window.i18n.chosen) {
+      pickLanguage();
+    } else if (read(SEEN_KEY) !== SEEN_VERSION) {
       open();
     }
   });

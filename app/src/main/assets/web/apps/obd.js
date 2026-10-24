@@ -58,7 +58,7 @@
       }
       const stop = document.createElement('button');
       stop.className = 'obd-device danger';
-      stop.textContent = 'Trennen';
+      stop.textContent = window.i18n.t('Trennen');
       stop.addEventListener('click', () => device.obdDisconnect());
       list.appendChild(stop);
 

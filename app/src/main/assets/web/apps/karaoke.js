@@ -24,7 +24,7 @@
       // Karaoke runs on YouTube in the in-app browser, which has instrumental versions with lyrics.
       function play(song) {
         if (!window.core.browser.available) {
-          window.core.toast('Nur in der App verfügbar');
+          window.core.toast(window.i18n.t('Nur in der App verfügbar'));
           return;
         }
         el.innerHTML = `
@@ -46,7 +46,7 @@
         el.innerHTML = `
           <div class="karaoke">
             <form class="karaoke-search">
-              <input type="text" placeholder="Song oder Interpret" autocomplete="off">
+              <input type="text" placeholder="${window.i18n.t('Song oder Interpret')}" autocomplete="off">
               <button type="submit">Singen</button>
             </form>
             <h3>Vorschläge</h3>

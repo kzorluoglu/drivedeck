@@ -3,6 +3,7 @@
   'use strict';
 
   const { device, $, toast, map } = window.core;
+  const { t, decimal } = window.i18n;
 
   const PHOTON_URL = 'https://photon.komoot.io/api/';
   const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving/';
@@ -88,16 +89,16 @@
 
   function formatDistance(m) {
     if (m >= 1000) {
-      return `${(m / 1000).toFixed(1).replace('.', ',')} km`;
+      return `${decimal(m / 1000, 1)} km`;
     }
     return `${Math.max(0, Math.round(m / 10) * 10)} m`;
   }
 
   function spokenDistance(m) {
     if (m >= 1000) {
-      return `${(m / 1000).toFixed(1).replace('.', ',')} Kilometern`;
+      return t('{0} Kilometern', decimal(m / 1000, 1));
     }
-    return `${Math.round(m / 50) * 50 || 50} Metern`;
+    return t('{0} Metern', Math.round(m / 50) * 50 || 50);
   }
 
   function formatDuration(seconds) {
@@ -111,48 +112,51 @@
   function spokenDuration(seconds) {
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) {
-      return `${minutes} Minuten`;
+      return t('{0} Minuten', minutes);
     }
-    return `${Math.floor(minutes / 60)} Stunden ${minutes % 60} Minuten`;
+    return t('{0} Stunden {1} Minuten', Math.floor(minutes / 60), minutes % 60);
   }
 
   /**
-   * Turns an OSRM maneuver into a German instruction. OSRM's demo server only returns raw
-   * maneuver types, so the wording is built here.
+   * Turns an OSRM maneuver into an instruction. OSRM's demo server only returns raw maneuver
+   * types, so the wording is built here from the texts in i18n.js. Each case has a variant with
+   * the street name, which is always the last argument.
    */
   function instruction(step) {
-    const dir = DIRECTION[step.modifier] || '';
-    const onto = step.name ? ` auf ${step.name}` : '';
+    const dir = DIRECTION[step.modifier] ? t(DIRECTION[step.modifier]) : '';
+    const name = step.name;
+    // picks the text with or without street name, the arguments come first, the name last
+    const phrase = (key, ...args) => (name ? t(`${key} auf {${args.length}}`, ...args, name) : t(key, ...args));
     switch (step.type) {
       case 'arrive':
-        return 'Ziel erreicht';
+        return t('Ziel erreicht');
       case 'depart':
-        return `Losfahren${onto}`;
+        return phrase('Losfahren');
       case 'roundabout':
       case 'rotary':
       case 'roundabout turn':
-        return step.exit ? `Im Kreisverkehr die ${step.exit}. Ausfahrt nehmen${onto}` : `In den Kreisverkehr${onto}`;
+        return step.exit ? phrase('Im Kreisverkehr die {0}. Ausfahrt nehmen', step.exit) : phrase('In den Kreisverkehr');
       case 'fork':
-        return `An der Gabelung ${dir} halten${onto}`;
+        return phrase('An der Gabelung {0} halten', dir);
       case 'off ramp':
-        return `Ausfahrt ${dir} nehmen${onto}`;
+        return phrase('Ausfahrt {0} nehmen', dir);
       case 'on ramp':
-        return `Auffahrt ${dir} nehmen${onto}`;
+        return phrase('Auffahrt {0} nehmen', dir);
       case 'merge':
-        return `${capitalize(dir)} einfädeln${onto}`;
+        return phrase('{0} einfädeln', capitalize(dir));
       case 'end of road':
-        return `Am Ende der Straße ${dir} abbiegen${onto}`;
+        return phrase('Am Ende der Straße {0} abbiegen', dir);
       case 'continue':
       case 'new name':
-        return !step.modifier || step.modifier === 'straight' ? `Weiter geradeaus${onto}` : `${capitalize(dir)} halten${onto}`;
+        return !step.modifier || step.modifier === 'straight' ? phrase('Weiter geradeaus') : phrase('{0} halten', capitalize(dir));
       default:
         if (step.modifier === 'uturn') {
-          return `Wenden${onto}`;
+          return phrase('Wenden');
         }
         if (!step.modifier || step.modifier === 'straight') {
-          return `Geradeaus weiter${onto}`;
+          return phrase('Geradeaus weiter');
         }
-        return `${capitalize(dir)} abbiegen${onto}`;
+        return phrase('{0} abbiegen', capitalize(dir));
     }
   }
 
@@ -171,7 +175,7 @@
 
   function placeLabel(props) {
     const street = [props.street, props.housenumber].filter(Boolean).join(' ');
-    const title = props.name || street || props.city || 'Unbekannter Ort';
+    const title = props.name || street || props.city || t('Unbekannter Ort');
     const detail = [props.name ? street : null, props.postcode, props.city || props.town || props.village, props.country]
       .filter(Boolean)
       .join(', ');
@@ -193,7 +197,7 @@
       }
       showResults(data.features || []);
     } catch (e) {
-      toast('Suche fehlgeschlagen, Internet prüfen');
+      toast(t('Suche fehlgeschlagen, Internet prüfen'));
     }
   }
 
@@ -271,7 +275,7 @@
     if (window.core.navCamera.rotated()) {
       return;
     }
-    startRoute({ lat: e.latlng.lat, lng: e.latlng.lng, title: 'Markierter Punkt' });
+    startRoute({ lat: e.latlng.lat, lng: e.latlng.lng, title: t('Markierter Punkt') });
   });
 
   // Routing
@@ -316,13 +320,13 @@
 
   async function startRoute(destination, isReroute) {
     if (!position) {
-      toast('Noch kein GPS Signal');
+      toast(t('Noch kein GPS Signal'));
       return false;
     }
     try {
       route = await fetchRoute(destination);
     } catch (e) {
-      toast('Route konnte nicht berechnet werden');
+      toast(t('Route konnte nicht berechnet werden'));
       return false;
     }
     // step 0 is "depart" at the current position, the first real maneuver is step 1
@@ -336,9 +340,9 @@
     chips.hidden = true;
 
     if (isReroute) {
-      say('Route wird neu berechnet');
+      say(t('Route wird neu berechnet'));
     } else {
-      say(`Route nach ${destination.title}. ${spokenDuration(route.duration)}.`);
+      say(t('Route nach {0}. {1}.', destination.title, spokenDuration(route.duration)));
     }
     // the camera follows the car at street level instead of showing the whole route
     window.core.navCamera.start();
@@ -361,7 +365,7 @@
   $('nav-stop').addEventListener('click', stopRoute);
   $('nav-mute').addEventListener('click', () => {
     voice = !voice;
-    $('nav-mute').textContent = voice ? 'Ton an' : 'Ton aus';
+    $('nav-mute').textContent = t(voice ? 'Ton an' : 'Ton aus');
   });
 
   // Lane guidance: shown shortly before a junction that has lane data with a lane to pick.
@@ -398,8 +402,8 @@
 
     if (toNext < STEP_DONE_M) {
       if (next.type === 'arrive') {
-        say('Sie haben Ihr Ziel erreicht');
-        toast('Ziel erreicht');
+        say(t('Sie haben Ihr Ziel erreicht'));
+        toast(t('Ziel erreicht'));
         stopRoute();
         return;
       }
@@ -415,7 +419,7 @@
     if (due.length) {
       const closest = Math.min(...due);
       ANNOUNCE_AT_M.filter((m) => m >= closest).forEach((m) => announced.add(m));
-      say(closest <= 60 ? text : `In ${spokenDistance(toNext)} ${text.charAt(0).toLowerCase()}${text.slice(1)}`);
+      say(closest <= 60 ? text : t('In {0} {1}', spokenDistance(toNext), text.charAt(0).toLowerCase() + text.slice(1)));
     }
 
     showLanes(next.lanes, toNext);
@@ -432,7 +436,7 @@
     $('nav-km').textContent = formatDistance(remaining);
     $('nav-time').textContent = formatDuration(seconds);
     $('nav-eta').textContent = new Date(Date.now() + seconds * 1000)
-      .toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      .toLocaleTimeString(window.i18n.tag, { hour: '2-digit', minute: '2-digit' });
   }
 
   function status() {
@@ -450,7 +454,7 @@
       destination: route.destination.title,
       remaining: formatDistance(remaining),
       duration: formatDuration(seconds),
-      arrival: new Date(Date.now() + seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      arrival: new Date(Date.now() + seconds * 1000).toLocaleTimeString(window.i18n.tag, { hour: '2-digit', minute: '2-digit' }),
       next: instruction(next),
       distanceToNext: position ? formatDistance(distance(position, next.loc)) : undefined,
       seconds,
@@ -476,7 +480,7 @@
     try {
       localStorage.setItem(PLACES_KEY, JSON.stringify(places));
     } catch (e) {
-      toast('Ort konnte nicht gespeichert werden');
+      toast(t('Ort konnte nicht gespeichert werden'));
     }
     renderChips();
   }

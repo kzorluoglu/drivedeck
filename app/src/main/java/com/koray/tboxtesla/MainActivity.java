@@ -323,9 +323,14 @@ public class MainActivity extends Activity {
         private final Context context;
         private final AudioManager audio;
         private final TextToSpeech tts;
+        private final CloudVoice cloud;
+        // speech through OpenRouter, the system voice and recognizer take over without a key or when it fails
+        private boolean cloudVoice = true;
+        private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
             this.context = context;
+            cloud = new CloudVoice(context, secrets);
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             tts = new TextToSpeech(context, this);
         }
@@ -338,6 +343,7 @@ public class MainActivity extends Activity {
         }
 
         void shutdown() {
+            cloud.stopSpeaking(true);
             tts.shutdown();
         }
 
@@ -503,7 +509,23 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void setSpeechLanguage(String tag) {
+            speechTag = tag;
             tts.setLanguage(Locale.forLanguageTag(tag));
+        }
+
+        /**
+         * Switches between OpenRouter voice (true, needs the key) and the voice of Android.
+         */
+        @JavascriptInterface
+        public void setCloudVoice(boolean on) {
+            cloudVoice = on;
+            if (!on) {
+                cloud.stopSpeaking(true);
+            }
+        }
+
+        private boolean useCloud() {
+            return cloudVoice && cloud.available();
         }
 
         /**
@@ -516,6 +538,10 @@ public class MainActivity extends Activity {
                 listenLanguage = languageTag;
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, AUDIO_REQUEST);
+                    return;
+                }
+                if (useCloud()) {
+                    cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
                     return;
                 }
                 if (!SpeechRecognizer.isRecognitionAvailable(MainActivity.this)) {
@@ -572,6 +598,19 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void stopListening() {
             runOnUiThread(() -> {
+                if (cloud.isRecording()) {
+                    // a second tap on the microphone ends the recording and transcribes it
+                    cloud.finishListening();
+                } else if (recognizer != null) {
+                    recognizer.cancel();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void cancelListening() {
+            runOnUiThread(() -> {
+                cloud.cancelListening();
                 if (recognizer != null) {
                     recognizer.cancel();
                 }
@@ -610,7 +649,11 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void speak(String text) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav");
+            if (useCloud()) {
+                cloud.speak(text, speechTag, () -> tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav"));
+            } else {
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav");
+            }
         }
 
         @JavascriptInterface

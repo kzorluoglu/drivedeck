@@ -4,6 +4,7 @@
   // Weather from Open-Meteo (free, no key). Shows the temperature at the top of the map and answers
   // the assistant's questions for here, the destination or any place.
   const { $ } = window.core;
+  const { t } = window.i18n;
   const API = 'https://api.open-meteo.com/v1/forecast';
   const REFRESH_MS = 15 * 60 * 1000;
   const MOVED_M = 15000;
@@ -82,7 +83,7 @@
       const data = await forecast(lat, lng);
       const now = describe(data.current.weather_code);
       chip.textContent = `${now.icon} ${Math.round(data.current.temperature_2m)}°`;
-      chip.title = now.text;
+      chip.title = t(now.text);
     } catch (e) {
       // keep the old value
     }

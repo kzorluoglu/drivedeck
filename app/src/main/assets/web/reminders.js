@@ -3,6 +3,7 @@
 
   // Timers and reminders, kept over restarts. When one is due the car speaks it and shows a banner.
   const { device, toast } = window.core;
+  const { t } = window.i18n;
   const KEY = 'reminders';
   const SHOW_MS = 60000;
 
@@ -18,7 +19,7 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(items));
     } catch (e) {
-      toast('Erinnerung konnte nicht gespeichert werden');
+      toast(t('Erinnerung konnte nicht gespeichert werden'));
     }
   }
 
@@ -51,7 +52,7 @@
   }, 3000);
 
   function describe(item) {
-    return { id: item.id, label: item.label, at: new Date(item.due).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) };
+    return { id: item.id, label: item.label, at: new Date(item.due).toLocaleTimeString(window.i18n.tag, { hour: '2-digit', minute: '2-digit' }) };
   }
 
   window.core.reminders = {
@@ -73,7 +74,7 @@
       } else {
         return { error: 'minutes oder at angeben' };
       }
-      const item = { id: Date.now(), due, label: label || 'Erinnerung' };
+      const item = { id: Date.now(), due, label: label || t('Erinnerung') };
       save([...load(), item]);
       return { ok: true, ...describe(item) };
     },

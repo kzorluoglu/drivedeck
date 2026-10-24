@@ -1811,3 +1811,16 @@ svg {
   fill: #fff;
   stroke: none;
 }
+
+.intro-choices {
+  display: flex;
+  justify-content: center;
+  gap: 2vh;
+  margin-top: 4vh;
+}
+
+.intro-choices .intro-btn {
+  height: 12vh;
+  min-width: 26vh;
+  font-size: 4vh;
+}

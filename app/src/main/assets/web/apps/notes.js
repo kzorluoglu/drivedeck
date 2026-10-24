@@ -15,12 +15,12 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
     } catch (e) {
-      window.core.toast('Notiz konnte nicht gespeichert werden');
+      window.core.toast(window.i18n.t('Notiz konnte nicht gespeichert werden'));
     }
   }
 
   function title(note) {
-    return note.text.split('\n')[0].trim() || 'Neue Notiz';
+    return note.text.split('\n')[0].trim() || window.i18n.t('Neue Notiz');
   }
 
   // Used by the assistant. Works on the stored notes, the notes app reloads them when it opens.
@@ -73,7 +73,7 @@
             <div class="notes-list"></div>
           </aside>
           <div class="notes-editor">
-            <textarea placeholder="Notiz schreiben ..."></textarea>
+            <textarea placeholder="${window.i18n.t('Notiz schreiben ...')}"></textarea>
             <button class="notes-delete">Löschen</button>
           </div>
         </div>`;
@@ -90,7 +90,7 @@
           item.classList.toggle('on', note === active);
           item.innerHTML = '<b></b><small></small>';
           item.querySelector('b').textContent = title(note);
-          item.querySelector('small').textContent = new Date(note.updated).toLocaleString('de-DE', {
+          item.querySelector('small').textContent = new Date(note.updated).toLocaleString(window.i18n.tag, {
             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
           });
           item.addEventListener('click', () => select(note));

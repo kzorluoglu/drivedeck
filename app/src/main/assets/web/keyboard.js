@@ -25,7 +25,8 @@
   const panel = document.getElementById('map-panel');
   const osk = document.getElementById('osk');
   let target = null;
-  let layout = 'de';
+  // the keyboard starts in the app language, Turkish has its own letters
+  let layout = window.i18n.lang === 'tr' ? 'tr' : 'de';
   let shift = false;
 
   function isEditable(el) {

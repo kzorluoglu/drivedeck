@@ -62,6 +62,57 @@
 <script>document.write('<script src="' + location.pathname.replace(/\/$/, '') + '/sjcl.js"><\/script>');</script>
 <script>
   const base = location.pathname.replace(/\/$/, '');
+  // The language comes from the QR code (l=de|tr|en), otherwise from the phone.
+  const LANG = (location.hash.match(/l=(de|tr|en)/) || [])[1] || (['tr', 'en'].includes((navigator.language || '').slice(0, 2)) ? navigator.language.slice(0, 2) : 'de');
+  const TABLE = {
+    "DriveDeck koppeln": ["DriveDeck eşleştir", "Pair DriveDeck"],
+    "Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Der Link läuft nach 30 Minuten Ruhe ab.": ["Veriler sadece doğrudan arabana gider (aynı Wi-Fi / hotspot), yolda şifrelidir ve arabada şifreli saklanır. Bağlantı 30 dakika kullanılmazsa süresi dolar.", "The data goes straight to your car only (same Wi-Fi / hotspot), is encrypted on the way and stored encrypted in the car. The link expires after 30 minutes of inactivity."],
+    "Ans Auto senden": ["Arabaya gönder", "Send to the car"],
+    "Ziel (Adresse oder Ort)": ["Hedef (adres veya yer)", "Destination (address or place)"],
+    "Bahnhofstraße 1, Lörrach": ["Atatürk Caddesi 1, İstanbul", "1 Main Street, London"],
+    "Navigation starten": ["Navigasyonu başlat", "Start navigation"],
+    "Notiz oder Link": ["Not veya bağlantı", "Note or link"],
+    "Wird im Auto als Notiz gespeichert": ["Arabada not olarak kaydedilir", "Saved as a note in the car"],
+    "Notiz senden": ["Notu gönder", "Send note"],
+    "Assistent einrichten": ["Asistanı ayarla", "Set up the assistant"],
+    "OpenRouter API-Schlüssel": ["OpenRouter API anahtarı", "OpenRouter API key"],
+    "Modell": ["Model", "Model"],
+    "Antippen zum Wählen. Preise pro 1 Mio. Tokens (Eingabe / Ausgabe), live von OpenRouter. Nur Modelle mit Werkzeugen, ohne die der Assistent nicht arbeiten kann. Rang nach Artificial Analysis Intelligence Index.": ["Seçmek için dokun. Fiyatlar 1 milyon token başına (giriş / çıkış), OpenRouter'dan canlı. Sadece araç kullanabilen modeller, asistan onlarsız çalışamaz. Sıralama Artificial Analysis Intelligence Index'e göre.", "Tap to choose. Prices per 1M tokens (input / output), live from OpenRouter. Only models with tool support, the assistant cannot work without it. Ranked by the Artificial Analysis Intelligence Index."],
+    "Lade Modelle ...": ["Modeller yükleniyor ...", "Loading models ..."],
+    "Anmeldungen für den Browser": ["Tarayıcı girişleri", "Logins for the browser"],
+    "z. B. Google (google.com). Das Passwort bekommt die KI nie zu sehen, es wird nur in die Seite eingetragen. Google blockiert Anmeldungen in eingebetteten Browsern gelegentlich.": ["ör. Google (google.com). Yapay zekâ şifreyi hiç görmez, sadece sayfaya yazılır. Google yerleşik tarayıcılardaki girişleri bazen engeller.", "e.g. Google (google.com). The AI never sees the password, it is only typed into the page. Google sometimes blocks logins in embedded browsers."],
+    "+ Anmeldung": ["+ Giriş", "+ Login"],
+    "Einstellungen speichern": ["Ayarları kaydet", "Save settings"],
+    "Entfernen": ["Kaldır", "Remove"],
+    "Seite": ["Site", "Site"],
+    "Benutzer / E-Mail": ["Kullanıcı / e-posta", "User / email"],
+    "Passwort": ["Şifre", "Password"],
+    "Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.": ["Anahtar eksik. Lütfen arabadaki QR kodunu tara, bağlantı elle yazılamaz.", "The key is missing. Please scan the QR code in the car, the link cannot be typed by hand."],
+    "Sende ...": ["Gönderiliyor ...", "Sending ..."],
+    "Gesendet, das Auto startet die Navigation.": ["Gönderildi, araba navigasyonu başlatıyor.", "Sent, the car starts the navigation."],
+    "Gesendet, als Notiz gespeichert.": ["Gönderildi, not olarak kaydedildi.", "Sent, saved as a note."],
+    "Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.": ["Gönderilemedi. Bağlantının süresi dolmuş veya araca ulaşılamıyor.", "Sending failed. The link expired or the car is not reachable."],
+    "unverändert": ["değiştirilmedi", "unchanged"],
+    "gratis": ["ücretsiz", "free"],
+    "Top 10 (bezahlt)": ["İlk 10 (ücretli)", "Top 10 (paid)"],
+    "Top 10 gratis": ["İlk 10 ücretsiz", "Top 10 free"],
+    "Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.": ["Model listesine ulaşılamıyor. Model kimliğini yukarıya kendin yazabilirsin.", "The model list is not reachable. You can enter the model ID above yourself."],
+    "Es ist schon ein Schlüssel gespeichert.": ["Zaten bir anahtar kayıtlı.", "A key is already saved."],
+    "Link abgelaufen. Im Auto neu koppeln.": ["Bağlantının süresi doldu. Arabada yeniden eşleştir.", "The link expired. Pair again in the car."],
+    "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
+    "Kontext": ["bağlam", "context"],
+  };
+  const T = (text) => (LANG === 'de' || !TABLE[text] ? text : TABLE[text][LANG === 'tr' ? 0 : 1]);
+  document.documentElement.lang = LANG;
+  if (LANG !== 'de') {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((n) => { const k = n.nodeValue.trim(); if (TABLE[k]) n.nodeValue = n.nodeValue.replace(k, T(k)); });
+    document.querySelectorAll('[placeholder]').forEach((el) => { if (TABLE[el.placeholder]) el.placeholder = T(el.placeholder); });
+    document.title = T('DriveDeck koppeln');
+  }
+
   const $ = (id) => document.getElementById(id);
 
   // The key comes from the QR code (URL fragment, never sent over the network). Everything that
@@ -88,21 +139,21 @@
   }
 
   if (!aes) {
-    $('fatal').textContent = 'Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.';
+    $('fatal').textContent = T('Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.');
   }
 
   async function send(type, text, button) {
     const msg = $('sendMsg');
     if (!text.trim()) return;
     msg.className = '';
-    msg.textContent = 'Sende ...';
+    msg.textContent = T('Sende ...');
     try {
       await post('send', { type, text: text.trim() });
       msg.className = 'ok';
-      msg.textContent = type === 'destination' ? 'Gesendet, das Auto startet die Navigation.' : 'Gesendet, als Notiz gespeichert.';
+      msg.textContent = type === 'destination' ? T('Gesendet, das Auto startet die Navigation.') : T('Gesendet, als Notiz gespeichert.');
     } catch (e) {
       msg.className = 'err';
-      msg.textContent = 'Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.';
+      msg.textContent = T('Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.');
     }
   }
   $('sendDest').onclick = () => send('destination', $('dest').value);
@@ -111,14 +162,14 @@
   function addLogin(login) {
     const el = document.createElement('div');
     el.className = 'login';
-    el.innerHTML = `<button type="button">Entfernen</button>
-      <label>Seite</label><input class="site" placeholder="google.com" autocapitalize="off" autocomplete="off">
-      <label>Benutzer / E-Mail</label><input class="user" autocapitalize="off" autocomplete="off">
-      <label>Passwort</label><input class="pass" type="password" autocomplete="off">`;
+    el.innerHTML = `<button type="button">${T('Entfernen')}</button>
+      <label>${T('Seite')}</label><input class="site" placeholder="google.com" autocapitalize="off" autocomplete="off">
+      <label>${T('Benutzer / E-Mail')}</label><input class="user" autocapitalize="off" autocomplete="off">
+      <label>${T('Passwort')}</label><input class="pass" type="password" autocomplete="off">`;
     el.querySelector('.site').value = login.site || '';
     el.querySelector('.user').value = login.user || '';
     if (login.site) {
-      el.querySelector('.pass').placeholder = 'unverändert';
+      el.querySelector('.pass').placeholder = T('unverändert');
     }
     el.querySelector('button').onclick = () => el.remove();
     $('logins').appendChild(el);
@@ -129,7 +180,7 @@
   // Model lists from the public OpenRouter catalog. Both lists only contain models that can call
   // tools, ranked by the Artificial Analysis intelligence index that OpenRouter includes.
   const perMillion = (p) => Number(p) * 1e6;
-  const money = (v) => (v === 0 ? 'gratis' : `$${v < 1 ? v.toFixed(2) : v.toFixed(v < 10 ? 2 : 1)}`);
+  const money = (v) => (v === 0 ? T('gratis') : `$${v < 1 ? v.toFixed(2) : v.toFixed(v < 10 ? 2 : 1)}`);
   const score = (m) => (m.benchmarks && m.benchmarks.artificial_analysis && m.benchmarks.artificial_analysis.intelligence_index) || 0;
 
   function markSelected() {
@@ -145,7 +196,7 @@
     group.appendChild(head);
     models.forEach((m) => {
       const price = perMillion(m.pricing.prompt) === 0 && perMillion(m.pricing.completion) === 0
-        ? 'gratis'
+        ? T('gratis')
         : `${money(perMillion(m.pricing.prompt))} / ${money(perMillion(m.pricing.completion))}`;
       const b = document.createElement('button');
       b.type = 'button';
@@ -156,8 +207,8 @@
       const meta = document.createElement('span');
       meta.textContent = `${m.id}`;
       const info = document.createElement('span');
-      info.className = price === 'gratis' ? 'free' : '';
-      info.textContent = ` · ${price} · ${Math.round(m.context_length / 1000)}k Kontext${score(m) ? ` · Index ${score(m).toFixed(0)}` : ''}`;
+      info.className = price === T('gratis') ? 'free' : '';
+      info.textContent = ` · ${price} · ${Math.round(m.context_length / 1000)}k ${T('Kontext')}${score(m) ? ` · Index ${score(m).toFixed(0)}` : ''}`;
       b.append(name, meta, info);
       b.onclick = () => { $('model').value = m.id; markSelected(); };
       group.appendChild(b);
@@ -173,21 +224,21 @@
     const top = usable.filter((m) => !isFree(m)).sort(byRank).slice(0, 10);
     const free = usable.filter(isFree).sort(byRank).slice(0, 10);
     $('models').innerHTML = '';
-    $('models').append(renderGroup('Top 10 (bezahlt)', top), renderGroup('Top 10 gratis', free));
+    $('models').append(renderGroup(T('Top 10 (bezahlt)'), top), renderGroup(T('Top 10 gratis'), free));
     markSelected();
   }).catch(() => {
-    $('models').innerHTML = '<small>Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.</small>';
+    $('models').innerHTML = '<small>' + T('Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.') + '</small>';
   });
 
   fetch(`${base}/state`).then((r) => r.json()).then(open).then((state) => {
     $('model').value = state.model;
     markSelected();
     if (state.hasKey) {
-      $('key').placeholder = 'unverändert';
-      $('keyNote').textContent = 'Es ist schon ein Schlüssel gespeichert.';
+      $('key').placeholder = T('unverändert');
+      $('keyNote').textContent = T('Es ist schon ein Schlüssel gespeichert.');
     }
     state.logins.forEach(addLogin);
-  }).catch(() => { $('msg').className = 'err'; $('msg').textContent = 'Link abgelaufen. Im Auto neu koppeln.'; });
+  }).catch(() => { $('msg').className = 'err'; $('msg').textContent = T('Link abgelaufen. Im Auto neu koppeln.'); });
 
   $('save').onclick = async () => {
     const logins = [...document.querySelectorAll('.login')].map((el) => ({
@@ -196,14 +247,14 @@
       pass: el.querySelector('.pass').value,
     }));
     $('msg').className = '';
-    $('msg').textContent = 'Sende ...';
+    $('msg').textContent = T('Sende ...');
     try {
       await post('save', { openrouterKey: $('key').value, model: $('model').value, logins });
       $('msg').className = 'ok';
-      $('msg').textContent = 'Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.';
+      $('msg').textContent = T('Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.');
     } catch (e) {
       $('msg').className = 'err';
-      $('msg').textContent = 'Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.';
+      $('msg').textContent = T('Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.');
     }
   };
 </script>

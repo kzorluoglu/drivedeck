@@ -2,6 +2,8 @@
   'use strict';
 
   const { state, $, toast } = window.core;
+  const { t } = window.i18n;
+  t.apply = window.i18n.apply;
 
   // Like in a Tesla, video, games and the browser are only available while standing still.
   const MAX_PARKED_SPEED = 5;
@@ -29,7 +31,7 @@
 
   function openWebApp(app) {
     if (app.parkedOnly && isMoving()) {
-      toast('Nur im Stand verfügbar');
+      toast(t('Nur im Stand verfügbar'));
       return;
     }
     window.core.closeSheet();
@@ -39,9 +41,10 @@
     }
     closeWindow();
     const body = $('app-body');
-    $('app-title').textContent = app.label;
+    $('app-title').textContent = t(app.label);
     $('app-window').hidden = false;
     current = { app, cleanup: app.mount(body) || null };
+    t.apply(body);
   }
 
   function closeWindow() {
@@ -58,7 +61,7 @@
   setInterval(() => {
     if (current && current.app.parkedOnly && isMoving()) {
       closeWindow();
-      toast('App wegen Fahrt geschlossen');
+      toast(t('App wegen Fahrt geschlossen'));
     }
   }, 1000);
 
@@ -131,13 +134,13 @@
     const entry = resolve(id);
     if (dockIds.includes(id)) {
       dockIds = dockIds.filter((d) => d !== id);
-      toast(`${entry ? entry.label : 'App'} aus dem Dock entfernt`);
+      toast(t('{0} aus dem Dock entfernt', t(entry ? entry.label : 'App')));
     } else if (dockIds.length >= DOCK_MAX) {
-      toast(`Dock ist voll, höchstens ${DOCK_MAX} Apps`);
+      toast(t('Dock ist voll, höchstens {0} Apps', DOCK_MAX));
       return;
     } else {
       dockIds.push(id);
-      toast(`${entry.label} zum Dock hinzugefügt`);
+      toast(t('{0} zum Dock hinzugefügt', t(entry.label)));
     }
     saveDock();
     renderDock();
@@ -164,11 +167,11 @@
       icon.className = 'dock-app-icon';
       const btn = document.createElement('button');
       btn.className = 'dock-app';
-      btn.title = entry.label;
+      btn.title = t(entry.label);
       btn.classList.toggle('locked', entry.locked && dockMoving);
       const caption = document.createElement('span');
       caption.className = 'dock-label';
-      caption.textContent = entry.label;
+      caption.textContent = t(entry.label);
       btn.appendChild(icon);
       btn.appendChild(caption);
       onPress(btn, entry.launch, () => togglePin(id));
@@ -189,7 +192,7 @@
     const moving = isMoving();
 
     const ownTitle = document.createElement('h2');
-    ownTitle.textContent = 'Apps';
+    ownTitle.textContent = t('Apps');
     const ownGrid = document.createElement('div');
     ownGrid.className = 'app-grid';
     webApps.forEach((app) => {
@@ -197,12 +200,12 @@
       icon.className = 'app-icon';
       icon.style.background = app.color;
       icon.innerHTML = app.icon;
-      ownGrid.appendChild(appTile(app.label, icon, Boolean(app.parkedOnly) && moving, () => openWebApp(app), `web:${app.id}`));
+      ownGrid.appendChild(appTile(t(app.label), icon, Boolean(app.parkedOnly) && moving, () => openWebApp(app), `web:${app.id}`));
     });
 
     const hint = document.createElement('p');
     hint.className = 'credits';
-    hint.textContent = 'Lange drücken, um eine App ins Dock zu legen oder daraus zu entfernen.';
+    hint.textContent = t('Lange drücken, um eine App ins Dock zu legen oder daraus zu entfernen.');
     container.append(hint, ownTitle, ownGrid);
   };
 })();

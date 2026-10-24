@@ -4,6 +4,7 @@
   // Things the phone sends through the pairing page: a destination starts the navigation, text
   // and links become a note.
   const { device, toast } = window.core;
+  const { t } = window.i18n;
 
   async function destination(text) {
     try {
@@ -11,17 +12,17 @@
       const saved = window.core.nav.places.find(text);
       const spot = saved || places[0];
       if (!spot) {
-        toast(`Ziel nicht gefunden: ${text}`);
+        toast(t('Ziel nicht gefunden: {0}', text));
         return;
       }
       const result = await window.core.nav.start(spot);
       if (result.error) {
         toast(result.error);
       } else {
-        toast(`Ziel vom Handy: ${spot.title}`);
+        toast(t('Ziel vom Handy: {0}', spot.title));
       }
     } catch (e) {
-      toast('Ziel vom Handy konnte nicht gesucht werden');
+      toast(t('Ziel vom Handy konnte nicht gesucht werden'));
     }
   }
 
@@ -34,9 +35,9 @@
       destination(String(text));
     } else if (type === 'note') {
       window.core.notes.add(String(text));
-      toast('Notiz vom Handy gespeichert');
+      toast(t('Notiz vom Handy gespeichert'));
       if (device) {
-        device.speak('Notiz vom Handy gespeichert');
+        device.speak(t('Notiz vom Handy gespeichert'));
       }
     }
   });

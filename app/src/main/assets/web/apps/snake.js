@@ -61,7 +61,7 @@
           ctx.fillStyle = '#fff';
           ctx.font = `${cell * 1.4}px sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText('Game over', canvas.width / 2, canvas.height / 2);
+          ctx.fillText(window.i18n.t('Game over'), canvas.width / 2, canvas.height / 2);
         }
       }
 

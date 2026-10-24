@@ -23,6 +23,8 @@
     vmouse: readStored('vmouse', '0') === '1',
     // above 5 km/h the browser, games and text input are locked, on by default
     driveLock: readStored('driveLock', '1') === '1',
+    // speech recognition and voice through OpenRouter instead of the services of Android
+    cloudVoice: readStored('cloudVoice', '1') === '1',
   };
 
   const labels = {
@@ -32,6 +34,7 @@
     eco: (v) => (v ? 'Sparsam (30 FPS)' : 'Volle Qualität'),
     vmouse: (v) => (v ? 'An' : 'Aus'),
     driveLock: (v) => (v ? 'An (ab 5 km/h)' : 'Aus'),
+    cloudVoice: (v) => (v ? 'OpenRouter' : 'Android'),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -46,7 +49,7 @@
   }
 
   // Shared with nav.js, apps.js and the web apps, which load after this file.
-  window.core = { state, device, $, toast };
+  window.core = { state, device, $, toast, t: window.i18n.t, lang: window.i18n.lang };
 
   function readStored(key, fallback) {
     try {
@@ -67,7 +70,7 @@
   // Clock
 
   function updateClock() {
-    $('clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    $('clock').textContent = new Date().toLocaleTimeString(window.i18n.tag, { hour: '2-digit', minute: '2-digit' });
   }
   updateClock();
   setInterval(updateClock, 10000);
@@ -174,7 +177,7 @@
     // lets tests and tools feed a position
     window.core.gpsFix = onFix;
   } else {
-    $('gps-state').textContent = 'Kein GPS';
+    $('gps-state').textContent = window.i18n.t('Kein GPS');
   }
 
   function updateSpeed(dt) {
@@ -237,11 +240,11 @@
 
   function canOpenDoors() {
     if (state.speed > 2) {
-      window.core.toast('Türen nur im Stand');
+      window.core.toast(window.i18n.t('Türen nur im Stand'));
       return false;
     }
     if (!car.hasDoors()) {
-      window.core.toast('Dieses Modell hat keine beweglichen Türen');
+      window.core.toast(window.i18n.t('Dieses Modell hat keine beweglichen Türen'));
       return false;
     }
     return true;
@@ -262,12 +265,24 @@
     }
   }, 500);
 
+  // the voice of the navigation follows the app language from the start, not only after the assistant was opened
+  if (device && device.setSpeechLanguage) {
+    device.setSpeechLanguage(window.i18n.tag);
+    device.setCloudVoice(state.cloudVoice);
+  }
+
   const effects = {
     fpsVisible(on) {
       $('fps').hidden = !on;
     },
     driveLock(on) {
       store('driveLock', on ? '1' : '0');
+    },
+    cloudVoice(on) {
+      store('cloudVoice', on ? '1' : '0');
+      if (device && device.setCloudVoice) {
+        device.setCloudVoice(on);
+      }
     },
     vmouse(on) {
       window.core.setMouse(on);
@@ -295,7 +310,7 @@
         tile.className = 'tile';
         tile.dataset.type = key;
         tile.classList.toggle('on', key === state.carType);
-        tile.innerHTML = `<b>${type.label}</b><small>${type.length.toFixed(1)} m</small>`;
+        tile.innerHTML = `<b>${window.i18n.t(type.label)}</b><small>${type.length.toFixed(1)} m</small>`;
         tiles.appendChild(tile);
       });
     }
@@ -310,15 +325,20 @@
         tile.className = 'tile paint-tile';
         tile.dataset.paint = key;
         tile.classList.toggle('on', key === state.paint);
-        tile.innerHTML = `<i style="background:#${paint.color.toString(16).padStart(6, '0')}"></i><b>${paint.label}</b>`;
+        tile.innerHTML = `<i style="background:#${paint.color.toString(16).padStart(6, '0')}"></i><b>${window.i18n.t(paint.label)}</b>`;
         paintTiles.appendChild(tile);
       });
     }
     sheet.querySelectorAll('[data-label]').forEach((el) => {
       const key = el.dataset.label;
-      el.textContent = labels[key](state[key]);
+      el.textContent = window.i18n.t(labels[key](state[key]));
       el.parentElement.classList.toggle('on', !!state[key]);
     });
+    const langName = sheet.querySelector('[data-lang-name]');
+    if (langName) {
+      langName.textContent = { de: 'Deutsch', tr: 'Türkçe', en: 'English' }[window.i18n.lang];
+    }
+    window.i18n.apply(sheet);
   }
 
   function showSheet(name) {
@@ -349,6 +369,12 @@
     }
     if (tile.dataset.type) {
       selectType(tile.dataset.type);
+      return;
+    }
+    if (tile.dataset.action === 'lang') {
+      const order = window.i18n.langs;
+      window.i18n.setLang(order[(order.indexOf(window.i18n.lang) + 1) % order.length]);
+      location.reload();
       return;
     }
     if (tile.dataset.action === 'intro') {
