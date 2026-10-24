@@ -29,7 +29,7 @@
         ['assistant', 'Der Assistent', 'Sprich oder tippe, was du brauchst: Orte suchen, navigieren, Notizen und Timer, Wetter, Musik und Video. Der Assistent bedient einen eingebauten Browser. Dein Passwort sieht er nie.'],
         ['phone', 'Handy koppeln', 'Im Assistenten zeigt die Box einen QR-Code. Scanne ihn mit dem Handy (selbes WLAN oder Hotspot), trage deinen OpenRouter-Schlüssel ein und schicke später Ziele und Links direkt ans Auto.'],
         ['mouse', 'Virtuelle Maus', 'Unter Apps → Einstellungen → Maus, oder die Mitteltaste des Steuerkreuzes etwa eine Sekunde halten. Pfeiltasten bewegen den Zeiger, Mitte klickt, Mitte halten zieht, Mitte zweimal schnell schaltet auf Scrollen.'],
-        ['lock', 'Sicher unterwegs', 'Über 5 km/h sind Browser, Spiele und Texteingabe gesperrt, nur Sprache bleibt. Diese Einführung findest du jederzeit unter Apps → Einstellungen → Einführung.'],
+        ['lock', 'Sicher unterwegs', 'Über 5 km/h sind Browser, Spiele und Texteingabe gesperrt, nur Sprache bleibt (abschaltbar unter Apps → Einstellungen → Fahrsperre). Diese Einführung findest du jederzeit unter Apps → Einstellungen → Einführung.'],
       ],
     },
     tr: {
@@ -42,7 +42,7 @@
         ['assistant', 'Asistan', 'İstediğini söyle ya da yaz: yer ara, navigasyon başlat, not ve zamanlayıcı, hava durumu, müzik ve video. Asistan yerleşik bir tarayıcıyı kullanır. Şifreni hiçbir zaman görmez.'],
         ['phone', 'Telefonu eşleştir', 'Asistanda kutu bir QR kodu gösterir. Telefonla tara (aynı Wi-Fi ya da hotspot), OpenRouter anahtarını gir. Sonra hedefleri ve bağlantıları doğrudan arabaya gönderebilirsin.'],
         ['mouse', 'Sanal fare', 'Apps → Einstellungen → Maus ile aç ya da yön tuşunun orta tuşunu yaklaşık bir saniye basılı tut. Ok tuşları imleci oynatır, orta tuş tıklar, orta tuşu basılı tutmak sürükler, hızlı iki kez basmak kaydırmaya geçirir.'],
-        ['lock', 'Güvenli sürüş', '5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır. Bu tanıtıma istediğin zaman Apps → Einstellungen → Einführung ile ulaşabilirsin.'],
+        ['lock', 'Güvenli sürüş', '5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır (isteğe bağlı: Apps → Einstellungen → Fahrsperre). Bu tanıtıma istediğin zaman Apps → Einstellungen → Einführung ile ulaşabilirsin.'],
       ],
     },
     en: {
@@ -55,7 +55,7 @@
         ['assistant', 'The assistant', 'Speak or type what you need: find places, navigate, notes and timers, weather, music and video. The assistant operates a built-in browser. It never sees your passwords.'],
         ['phone', 'Pair your phone', 'In the assistant the box shows a QR code. Scan it with your phone (same Wi-Fi or hotspot), enter your OpenRouter key, and later send destinations and links straight to the car.'],
         ['mouse', 'Virtual mouse', 'Turn it on under Apps → Einstellungen → Maus, or hold the centre key of the direction pad for about a second. Arrow keys move the pointer, centre clicks, holding centre drags, pressing centre twice quickly switches to scrolling.'],
-        ['lock', 'Safe on the road', 'Above 5 km/h the browser, games and text input are locked, only voice remains. You can open this tour any time under Apps → Einstellungen → Einführung.'],
+        ['lock', 'Safe on the road', 'Above 5 km/h the browser, games and text input are locked, only voice remains (optional: Apps → Einstellungen → Fahrsperre). You can open this tour any time under Apps → Einstellungen → Einführung.'],
       ],
     },
   };

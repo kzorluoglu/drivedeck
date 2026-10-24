@@ -25,7 +25,7 @@ Uygulama bir Android WebView'dır, arayüzün tamamı HTML/JS ile yazılmıştı
 - Arabanın yön tuşlarıyla kullanılan **sanal fare** (aşağıya bak).
 - Notlar, OBD göstergesi (Bluetooth üzerinden ELM327), 2048, Snake, Karaoke, Çizim.
 - İlk açılışta **tanıtım turu** (Almanca, Türkçe, İngilizce), ok tuşları ve orta tuşla da kullanılır. Tekrar açmak için Apps → Einstellungen → Einführung.
-- Sürüş kilidi: 5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır.
+- Sürüş kilidi (isteğe bağlı, varsayılan açık, Apps → Einstellungen → Fahrsperre ile kapatılır): 5 km/s üzerinde tarayıcı, oyunlar ve yazı girişi kilitlenir, sadece ses kalır.
 
 ![Sürüş](docs/img/driving.gif)
 

@@ -21,6 +21,8 @@
     fpsVisible: true,
     eco: readStored(ECO_STORAGE_KEY, '1') === '1',
     vmouse: readStored('vmouse', '0') === '1',
+    // above 5 km/h the browser, games and text input are locked, on by default
+    driveLock: readStored('driveLock', '1') === '1',
   };
 
   const labels = {
@@ -29,6 +31,7 @@
     fpsVisible: (v) => (v ? 'Sichtbar' : 'Versteckt'),
     eco: (v) => (v ? 'Sparsam (30 FPS)' : 'Volle Qualität'),
     vmouse: (v) => (v ? 'An' : 'Aus'),
+    driveLock: (v) => (v ? 'An (ab 5 km/h)' : 'Aus'),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -243,6 +246,9 @@
   const effects = {
     fpsVisible(on) {
       $('fps').hidden = !on;
+    },
+    driveLock(on) {
+      store('driveLock', on ? '1' : '0');
     },
     vmouse(on) {
       window.core.setMouse(on);

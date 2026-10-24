@@ -29,7 +29,7 @@ das 3D-Auto und Leaflet für die Karte.
 - **Virtuelle Maus**, gesteuert mit den Pfeiltasten des Autos (siehe unten).
 - Notizen, OBD-Anzeige (ELM327 über Bluetooth), 2048, Snake, Karaoke, Malen.
 - **Einführung** beim ersten Start (Deutsch, Türkisch, Englisch), auch mit Pfeiltasten und Mitteltaste bedienbar. Erneut öffnen unter Apps → Einstellungen → Einführung.
-- Fahrsperre: Über 5 km/h sind Browser, Spiele und Texteingabe gesperrt, nur Sprache bleibt.
+- Fahrsperre (optional, standardmäßig an, abschaltbar unter Apps → Einstellungen → Fahrsperre): Über 5 km/h sind Browser, Spiele und Texteingabe gesperrt, nur Sprache bleibt.
 
 ![Fahrt](docs/img/driving.gif)
 

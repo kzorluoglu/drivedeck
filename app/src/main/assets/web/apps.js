@@ -24,7 +24,7 @@
   };
 
   function isMoving() {
-    return state.speed > MAX_PARKED_SPEED;
+    return state.driveLock && state.speed > MAX_PARKED_SPEED;
   }
 
   function openWebApp(app) {
