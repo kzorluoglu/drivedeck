@@ -222,6 +222,9 @@
   let enableTimer = null;
 
   function onKeyDown(e) {
+    if (document.body.classList.contains('intro-open')) {
+      return;
+    }
     if (e.key !== 'Enter' && !(e.key in DIRECTIONS)) {
       return;
     }

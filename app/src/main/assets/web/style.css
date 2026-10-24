@@ -1662,3 +1662,100 @@ svg {
 #vmouse-cursor.drag svg {
   fill: var(--accent);
 }
+
+/* First-start tour, also reachable from the settings */
+
+#intro {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3vh 4vw;
+  background: radial-gradient(ellipse at 50% 30%, #23252c 0%, #0c0d0f 75%);
+}
+
+.intro-top, .intro-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.intro-langs {
+  display: flex;
+  gap: 1vh;
+}
+
+.intro-langs button, .intro-skip, .intro-btn {
+  height: 7vh;
+  min-width: 9vh;
+  padding: 0 2.4vh;
+  border-radius: 1.6vh;
+  background: var(--panel-2);
+  font-size: 2.6vh;
+}
+
+.intro-langs button.on, .intro-btn.primary {
+  background: var(--accent);
+}
+
+.intro-skip {
+  background: none;
+  color: var(--muted);
+}
+
+.intro-slide {
+  align-self: center;
+  max-width: 120vh;
+  text-align: center;
+  animation: intro-in 0.35s ease-out;
+}
+
+@keyframes intro-in {
+  from { opacity: 0; transform: translateY(2vh); }
+}
+
+.intro-icon {
+  width: 18vh;
+  height: 18vh;
+  margin: 0 auto 3vh;
+  display: grid;
+  place-items: center;
+  border-radius: 4vh;
+  background: var(--accent);
+}
+
+.intro-icon svg {
+  width: 10vh;
+  height: 10vh;
+}
+
+.intro-slide h1 {
+  margin: 0 0 2vh;
+  font-size: 6vh;
+  font-weight: 500;
+}
+
+.intro-slide p {
+  margin: 0;
+  font-size: 3vh;
+  line-height: 1.45;
+  color: #c9ccd6;
+}
+
+.intro-dots {
+  display: flex;
+  gap: 1.2vh;
+}
+
+.intro-dots i {
+  width: 1.4vh;
+  height: 1.4vh;
+  border-radius: 50%;
+  background: #3a3c44;
+}
+
+.intro-dots i.on {
+  background: var(--text);
+}

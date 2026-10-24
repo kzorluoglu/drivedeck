@@ -326,6 +326,11 @@
       selectType(tile.dataset.type);
       return;
     }
+    if (tile.dataset.action === 'intro') {
+      closeSheet();
+      window.core.intro.open();
+      return;
+    }
     if (tile.dataset.action === 'reload') {
       location.reload();
       return;

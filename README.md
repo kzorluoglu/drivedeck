@@ -26,6 +26,7 @@ Leaflet for the map.
   logins, destinations and links. Everything is end-to-end encrypted (AES-GCM) and stored with an Android Keystore key.
 - **Virtual mouse** driven by the arrow keys of the car (see below).
 - Notes, OBD dashboard (ELM327 over Bluetooth), 2048, Snake, Karaoke, Paint.
+- **Intro tour** on first start (German, Turkish, English), arrow keys and the centre key work too. Reopen it under Apps → Einstellungen → Einführung.
 - Driving lock: above 5 km/h browser, games and text input are locked, only voice remains.
 
 ![Driving](docs/img/driving.gif)
