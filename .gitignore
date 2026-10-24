@@ -1,0 +1,16 @@
+# Gradle and build output
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+
+# IDE and OS
+.idea/
+*.iml
+.DS_Store
+
+# model pipeline
+tools/model-pipeline/node_modules/
+*.blend
+*.blend1

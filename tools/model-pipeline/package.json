@@ -1,0 +1,14 @@
+{
+  "name": "drivedeck-model-pipeline",
+  "private": true,
+  "type": "module",
+  "description": "Prepares 3D car models for the T-Box (see README in the project root)",
+  "dependencies": {
+    "@gltf-transform/cli": "4.1.1",
+    "@gltf-transform/core": "4.1.1",
+    "@gltf-transform/extensions": "4.1.1",
+    "@gltf-transform/functions": "4.1.1",
+    "meshoptimizer": "0.22.0",
+    "sharp": "0.34.4"
+  }
+}
