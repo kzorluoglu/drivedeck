@@ -1824,3 +1824,53 @@ svg {
   min-width: 26vh;
   font-size: 4vh;
 }
+
+/* Update dialog */
+
+#update-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.update-card {
+  width: 80vh;
+  padding: 3vh;
+  border-radius: 2vh;
+  background: #17181c;
+  border: 1px solid #2a2b31;
+}
+
+.update-card h2 {
+  margin: 0 0 1.5vh;
+  font-size: 4vh;
+  font-weight: 500;
+}
+
+.update-card p {
+  margin: 0 0 3vh;
+  font-size: 2.8vh;
+  line-height: 1.4;
+  color: #c9ccd6;
+}
+
+.update-buttons {
+  display: flex;
+  gap: 1.5vh;
+  flex-wrap: wrap;
+}
+
+.update-buttons button {
+  height: 7vh;
+  padding: 0 2.4vh;
+  border-radius: 1.6vh;
+  background: var(--panel-2);
+  font-size: 2.6vh;
+}
+
+.update-buttons button.primary {
+  background: var(--accent);
+}

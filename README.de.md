@@ -29,6 +29,7 @@ das 3D-Auto und Leaflet für die Karte.
   Android-Keystore-Schlüssel gespeichert.
 - **Eine Sprache für alles**: Deutsch, Türkisch oder Englisch, einmal beim ersten Start gewählt. Oberfläche, Sprachführung, Assistent, seine Prompts und die Handy-Seite folgen ihr. Später änderbar unter Apps → Einstellungen → Sprache.
 - **Stimme über OpenRouter**: Spracherkennung (`openai/gpt-4o-mini-transcribe`) und Sprachausgabe (`openai/gpt-4o-mini-tts`) laufen über deinen OpenRouter-Schlüssel statt über die Sprachdienste der Box. Ohne Schlüssel oder wenn der Dienst nicht erreichbar ist, springt die Android-Stimme ein. Umschalten unter Apps → Einstellungen → Stimme. Gesprochene Sätze werden auf der Box zwischengespeichert.
+- **Updates ohne Google Play**: Die App sucht alle paar Stunden nach einem neueren GitHub-Release (nur im Stand), fragt, lädt es herunter und übergibt es dem Android-Installer, der noch einmal bestätigen lässt. Die Suche lässt sich unter Apps → Einstellungen abschalten oder von Hand starten. Angenommen wird nur diese App in einer neueren Version.
 - **Virtuelle Maus**, gesteuert mit den Pfeiltasten des Autos (siehe unten).
 - Notizen, OBD-Anzeige (ELM327 über Bluetooth), 2048, Snake, Karaoke, Malen.
 - **Einführung** beim ersten Start (Deutsch, Türkisch, Englisch), auch mit Pfeiltasten und Mitteltaste bedienbar. Erneut öffnen unter Apps → Einstellungen → Einführung.

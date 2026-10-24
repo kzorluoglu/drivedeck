@@ -176,6 +176,22 @@
     ['Halb', 'Yarım', 'Half'],
     ['Voll', 'Tam', 'Full'],
     ['Notiz', 'Not', 'Note'],
+    // updates
+    ['Update-Suche', 'Güncelleme denetimi', 'Update check'],
+    ['Nach Updates suchen', 'Güncellemeleri denetle', 'Check for updates'],
+    ['Wird heruntergeladen ... {0} %', 'İndiriliyor ... %{0}', 'Downloading ... {0} %'],
+    ['Update {0}', 'Güncelleme {0}', 'Update {0}'],
+    ['Update fehlgeschlagen', 'Güncelleme başarısız', 'Update failed'],
+    ['Schließen', 'Kapat', 'Close'],
+    ['Berechtigung nötig', 'İzin gerekli', 'Permission needed'],
+    ['Erlaube DriveDeck in den Android-Einstellungen, Apps zu installieren, und tippe danach noch einmal auf Installieren.', 'Android ayarlarında DriveDeck\'in uygulama yüklemesine izin ver, sonra tekrar Yükle\'ye dokun.', 'Allow DriveDeck to install apps in the Android settings, then tap Install again.'],
+    ['Installieren', 'Yükle', 'Install'],
+    ['Später', 'Sonra', 'Later'],
+    ['Bestätige die Installation auf dem Bildschirm. Danach die App neu öffnen.', 'Kurulumu ekranda onayla. Sonra uygulamayı yeniden aç.', 'Confirm the installation on the screen. Then open the app again.'],
+    ['Version {0} ist verfügbar, installiert ist {1}.', '{0} sürümü hazır, kurulu olan {1}.', 'Version {0} is available, {1} is installed.'],
+    ['Diese Version überspringen', 'Bu sürümü atla', 'Skip this version'],
+    ['Update-Suche fehlgeschlagen', 'Güncelleme araması başarısız', 'The update search failed'],
+    ['Die App ist aktuell ({0})', 'Uygulama güncel ({0})', 'The app is up to date ({0})'],
     // lane bar, intro, language picker
     ['Überspringen', 'Atla', 'Skip'],
   ];

@@ -27,6 +27,7 @@ Leaflet for the map.
   logins, destinations and links. Everything is end-to-end encrypted (AES-GCM) and stored with an Android Keystore key.
 - **One language for everything**: German, Turkish or English, chosen once at the first start. The interface, the turn-by-turn voice, the assistant, its prompts and the phone page all follow it. Change it later under Apps → Settings → Language.
 - **Voice through OpenRouter**: speech recognition (`openai/gpt-4o-mini-transcribe`) and speech output (`openai/gpt-4o-mini-tts`) run through your OpenRouter key instead of the speech services of the box. Without a key, or when the service is unreachable, the voice of Android takes over. Switch under Apps → Settings → Voice. Spoken phrases are cached on the box.
+- **Updates without Google Play**: the app looks for a newer GitHub release every few hours (only while parked), asks, downloads it and hands it to the Android installer, which asks for a last confirmation. Switch the check off or search by hand under Apps → Settings. Updates are only accepted if they are this app in a newer version.
 - **Virtual mouse** driven by the arrow keys of the car (see below).
 - Notes, OBD dashboard (ELM327 over Bluetooth), 2048, Snake, Karaoke, Paint.
 - **Intro tour** on first start (German, Turkish, English), arrow keys and the centre key work too. Reopen it under Apps → Einstellungen → Einführung.

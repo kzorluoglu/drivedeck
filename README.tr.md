@@ -25,6 +25,7 @@ Uygulama bir Android WebView'dır, arayüzün tamamı HTML/JS ile yazılmıştı
   girişleri, hedefleri ve bağlantıları gönderir. Her şey uçtan uca şifrelidir (AES-GCM) ve Android Keystore anahtarıyla saklanır.
 - **Her şey için tek dil**: Almanca, Türkçe veya İngilizce, ilk açılışta bir kere seçilir. Arayüz, sesli yönlendirme, asistan, asistanın promptları ve telefon sayfası bu dili izler. Sonradan Uygulamalar → Ayarlar → Dil ile değişir.
 - **OpenRouter ile ses**: konuşma tanıma (`openai/gpt-4o-mini-transcribe`) ve sesli okuma (`openai/gpt-4o-mini-tts`) kutunun konuşma servisleri yerine OpenRouter anahtarınla çalışır. Anahtar yoksa veya servise ulaşılamazsa Android sesi devreye girer. Uygulamalar → Ayarlar → Ses ile değişir. Okunan cümleler kutuda önbelleğe alınır.
+- **Google Play olmadan güncelleme**: uygulama birkaç saatte bir yeni GitHub sürümüne bakar (sadece dururken), sorar, indirir ve son bir onay isteyen Android yükleyicisine verir. Denetimi Uygulamalar → Ayarlar'dan kapatabilir veya elle başlatabilirsin. Sadece bu uygulamanın daha yeni sürümü kabul edilir.
 - Arabanın yön tuşlarıyla kullanılan **sanal fare** (aşağıya bak).
 - Notlar, OBD göstergesi (Bluetooth üzerinden ELM327), 2048, Snake, Karaoke, Çizim.
 - İlk açılışta **tanıtım turu** (Almanca, Türkçe, İngilizce), ok tuşları ve orta tuşla da kullanılır. Tekrar açmak için Apps → Einstellungen → Einführung.

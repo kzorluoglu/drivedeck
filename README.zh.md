@@ -23,6 +23,7 @@
   全程端到端加密（AES-GCM），并用 Android Keystore 密钥保存。
 - **全部使用同一种语言**：德语、土耳其语或英语，首次启动时选择一次。界面、语音导航、助手、助手的提示词和手机页面都会跟随。之后可在 Apps → Einstellungen → Sprache 中更改。
 - **通过 OpenRouter 的语音**：语音识别（`openai/gpt-4o-mini-transcribe`）和语音播报（`openai/gpt-4o-mini-tts`）使用你的 OpenRouter 密钥，而不是盒子自带的语音服务。没有密钥或服务不可用时，改用 Android 的语音。可在 Apps → Einstellungen → Stimme 中切换。播报过的句子会缓存在盒子上。
+- **无需 Google Play 的更新**：应用每隔几个小时检查一次 GitHub 上的新版本（仅在停车时），询问后下载，并交给 Android 安装程序，由它再请求一次确认。可在 Apps → Einstellungen 中关闭检查或手动检查。只接受本应用的更新版本。
 - **虚拟鼠标**，用车上的方向键控制（见下文）。
 - 笔记、OBD 仪表（通过蓝牙连接 ELM327）、2048、贪吃蛇、卡拉 OK、画图。
 - 首次启动时显示**介绍导览**（德语、土耳其语、英语），也可用方向键和中间键操作。可在 Apps → Einstellungen → Einführung 中重新打开。

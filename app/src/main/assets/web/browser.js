@@ -162,4 +162,5 @@
 
   window.core.browser = browser;
   window.core.onEvent = onEvent;
+  window.core.nativeCall = call;
 })();

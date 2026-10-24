@@ -2,7 +2,11 @@ package com.koray.tboxtesla;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.IntentFilter;
+import android.content.pm.PackageInstaller;
+import android.provider.Settings;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioManager;
@@ -65,6 +69,24 @@ public class MainActivity extends Activity {
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private DeviceBridge bridge;
+    private Updater updater;
+    private final BroadcastReceiver installResult = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+            if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                // the system asks the driver to confirm the update
+                Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                if (confirm != null) {
+                    confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(confirm);
+                }
+            } else if (status != PackageInstaller.STATUS_SUCCESS) {
+                String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                callPage(0, "{\"event\":\"update\",\"status\":\"failed\",\"message\":" + JSONObject.quote(String.valueOf(message)) + "}");
+            }
+        }
+    };
     private String pendingOrigin;
     private GeolocationPermissions.Callback pendingCallback;
 
@@ -99,6 +121,13 @@ public class MainActivity extends Activity {
             }
         });
         bridge = new DeviceBridge(this);
+        updater = new Updater(this);
+        IntentFilter resultFilter = new IntentFilter(Updater.RESULT_ACTION);
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(installResult, resultFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(installResult, resultFilter);
+        }
         web.addJavascriptInterface(bridge, "TBox");
 
         web.setWebViewClient(new WebViewClient() {
@@ -307,6 +336,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        unregisterReceiver(installResult);
         pairing.stop();
         obd.disconnect();
         if (recognizer != null) {
@@ -645,6 +675,53 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String obdState() {
             return obd.state();
+        }
+
+        // Updates from the GitHub releases, see Updater
+
+        @JavascriptInterface
+        public String appVersion() {
+            try {
+                return updater.installedVersion();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        /**
+         * Looks for a newer release. The answer arrives as window.core.native(id, {available, version, url, size, notes} or {error}).
+         */
+        @JavascriptInterface
+        public void updateCheck(int id) {
+            new Thread(() -> {
+                try {
+                    callPage(id, updater.check());
+                } catch (Exception e) {
+                    callPage(id, "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                }
+            }, "update-check").start();
+        }
+
+        /**
+         * Downloads and installs the release. Progress arrives as event {event:"update", status:"downloading", percent},
+         * the final answer as {ok:true}, {needsPermission:true} or {error}.
+         */
+        @JavascriptInterface
+        public void updateInstall(int id, String url) {
+            if (!updater.mayInstall()) {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()))));
+                callPage(id, "{\"needsPermission\":true}");
+                return;
+            }
+            new Thread(() -> {
+                try {
+                    updater.install(url, (percent) -> callPage(0, "{\"event\":\"update\",\"status\":\"downloading\",\"percent\":" + percent + "}"));
+                    callPage(id, "{\"ok\":true}");
+                } catch (Exception e) {
+                    callPage(id, "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                }
+            }, "update-install").start();
         }
 
         @JavascriptInterface

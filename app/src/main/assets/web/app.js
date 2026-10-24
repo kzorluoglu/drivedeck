@@ -25,6 +25,8 @@
     driveLock: readStored('driveLock', '1') === '1',
     // speech recognition and voice through OpenRouter instead of the services of Android
     cloudVoice: readStored('cloudVoice', '1') === '1',
+    // looks for a newer release on GitHub now and then and asks before installing
+    autoUpdate: readStored('autoUpdate', '1') === '1',
   };
 
   const labels = {
@@ -35,6 +37,7 @@
     vmouse: (v) => (v ? 'An' : 'Aus'),
     driveLock: (v) => (v ? 'An (ab 5 km/h)' : 'Aus'),
     cloudVoice: (v) => (v ? 'OpenRouter' : 'Android'),
+    autoUpdate: (v) => (v ? 'An' : 'Aus'),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -278,6 +281,9 @@
     driveLock(on) {
       store('driveLock', on ? '1' : '0');
     },
+    autoUpdate(on) {
+      store('autoUpdate', on ? '1' : '0');
+    },
     cloudVoice(on) {
       store('cloudVoice', on ? '1' : '0');
       if (device && device.setCloudVoice) {
@@ -334,6 +340,10 @@
       el.textContent = window.i18n.t(labels[key](state[key]));
       el.parentElement.classList.toggle('on', !!state[key]);
     });
+    const version = sheet.querySelector('[data-app-version]');
+    if (version) {
+      version.textContent = device && device.appVersion ? `Version ${device.appVersion()}` : '';
+    }
     const langName = sheet.querySelector('[data-lang-name]');
     if (langName) {
       langName.textContent = { de: 'Deutsch', tr: 'Türkçe', en: 'English' }[window.i18n.lang];
@@ -369,6 +379,11 @@
     }
     if (tile.dataset.type) {
       selectType(tile.dataset.type);
+      return;
+    }
+    if (tile.dataset.action === 'update') {
+      closeSheet();
+      window.core.updates.check(true);
       return;
     }
     if (tile.dataset.action === 'lang') {
