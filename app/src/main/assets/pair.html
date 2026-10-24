@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveDeck koppeln</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 20px; background: #0f1012; color: #f2f2f4; font: 16px/1.4 system-ui, sans-serif; max-width: 560px; margin-inline: auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.hint { color: #8b8c94; margin: 0 0 18px; font-size: 14px; }
+  label { display: block; margin: 14px 0 4px; font-size: 14px; color: #b9bac2; }
+  textarea, input { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #2b2c31; background: #18191c; color: inherit; font: inherit; }
+  .login { border: 1px solid #2b2c31; border-radius: 12px; padding: 4px 12px 12px; margin-top: 12px; }
+  .login button { float: right; margin-top: 8px; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 12px 16px; background: #26272c; color: inherit; }
+  button.primary { width: 100%; background: #3e6ae1; margin-top: 22px; font-weight: 600; }
+  #msg { margin-top: 14px; min-height: 1.4em; }
+  .ok { color: #4ade80; } .err { color: #f87171; }
+  small { color: #8b8c94; }
+  .group { font-size: 14px; color: #b9bac2; margin: 16px 0 6px; }
+  .m { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 10px 12px; border: 1px solid #2b2c31; background: #18191c; }
+  .m.on { border-color: #3e6ae1; background: #1d2540; }
+  .m b { display: block; font-size: 15px; font-weight: 600; }
+  .m span { color: #8b8c94; font-size: 13px; }
+  .m .free { color: #4ade80; }
+</style>
+</head>
+<body>
+<h1>DriveDeck koppeln</h1>
+<p class="hint">Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Der Link läuft nach 30 Minuten Ruhe ab.</p>
+<div id="fatal" class="err"></div>
+
+<h2 style="font-size:17px;margin:6px 0 0">Ans Auto senden</h2>
+<label for="dest">Ziel (Adresse oder Ort)</label>
+<input id="dest" type="text" autocomplete="off" placeholder="Bahnhofstraße 1, Lörrach">
+<button id="sendDest" class="primary" type="button" style="margin-top:10px">Navigation starten</button>
+<label for="note">Notiz oder Link</label>
+<textarea id="note" rows="3" placeholder="Wird im Auto als Notiz gespeichert"></textarea>
+<button id="sendNote" class="primary" type="button" style="margin-top:10px">Notiz senden</button>
+<div id="sendMsg"></div>
+
+<h2 style="font-size:17px;margin:30px 0 0">Assistent einrichten</h2>
+
+<label for="key">OpenRouter API-Schlüssel</label>
+<input id="key" type="password" autocomplete="off" placeholder="sk-or-...">
+<small id="keyNote"></small>
+
+<label for="model">Modell</label>
+<input id="model" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+<small>Antippen zum Wählen. Preise pro 1 Mio. Tokens (Eingabe / Ausgabe), live von OpenRouter. Nur Modelle mit Werkzeugen, ohne die der Assistent nicht arbeiten kann. Rang nach Artificial Analysis Intelligence Index.</small>
+<div id="models"><small>Lade Modelle ...</small></div>
+
+<h2 style="font-size:17px;margin:26px 0 0">Anmeldungen für den Browser</h2>
+<p class="hint">z. B. Google (google.com). Das Passwort bekommt die KI nie zu sehen, es wird nur in die Seite eingetragen. Google blockiert Anmeldungen in eingebetteten Browsern gelegentlich.</p>
+<div id="logins"></div>
+<button id="add" type="button">+ Anmeldung</button>
+
+<button id="save" class="primary" type="button">Einstellungen speichern</button>
+<div id="msg"></div>
+
+<script>document.write('<script src="' + location.pathname.replace(/\/$/, '') + '/sjcl.js"><\/script>');</script>
+<script>
+  const base = location.pathname.replace(/\/$/, '');
+  const $ = (id) => document.getElementById(id);
+
+  // The key comes from the QR code (URL fragment, never sent over the network). Everything that
+  // goes to or comes from the car is AES-GCM encrypted with it.
+  const keyHex = (location.hash.match(/k=([0-9a-f]{64})/) || [])[1];
+  const aes = keyHex && new sjcl.cipher.aes(sjcl.codec.hex.toBits(keyHex));
+
+  function seal(object) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ivBits = sjcl.codec.hex.toBits([...iv].map((b) => b.toString(16).padStart(2, '0')).join(''));
+    const sealed = sjcl.mode.gcm.encrypt(aes, sjcl.codec.utf8String.toBits(JSON.stringify(object)), ivBits, [], 128);
+    return JSON.stringify({ iv: sjcl.codec.hex.fromBits(ivBits), ct: sjcl.codec.hex.fromBits(sealed) });
+  }
+
+  function open(box) {
+    const plain = sjcl.mode.gcm.decrypt(aes, sjcl.codec.hex.toBits(box.ct), sjcl.codec.hex.toBits(box.iv), [], 128);
+    return JSON.parse(sjcl.codec.utf8String.fromBits(plain));
+  }
+
+  async function post(action, object) {
+    const res = await fetch(`${base}/${action}`, { method: 'POST', body: seal(object) });
+    if (!res.ok) throw new Error(res.status);
+    return open(await res.json());
+  }
+
+  if (!aes) {
+    $('fatal').textContent = 'Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.';
+  }
+
+  async function send(type, text, button) {
+    const msg = $('sendMsg');
+    if (!text.trim()) return;
+    msg.className = '';
+    msg.textContent = 'Sende ...';
+    try {
+      await post('send', { type, text: text.trim() });
+      msg.className = 'ok';
+      msg.textContent = type === 'destination' ? 'Gesendet, das Auto startet die Navigation.' : 'Gesendet, als Notiz gespeichert.';
+    } catch (e) {
+      msg.className = 'err';
+      msg.textContent = 'Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.';
+    }
+  }
+  $('sendDest').onclick = () => send('destination', $('dest').value);
+  $('sendNote').onclick = () => send('note', $('note').value);
+
+  function addLogin(login) {
+    const el = document.createElement('div');
+    el.className = 'login';
+    el.innerHTML = `<button type="button">Entfernen</button>
+      <label>Seite</label><input class="site" placeholder="google.com" autocapitalize="off" autocomplete="off">
+      <label>Benutzer / E-Mail</label><input class="user" autocapitalize="off" autocomplete="off">
+      <label>Passwort</label><input class="pass" type="password" autocomplete="off">`;
+    el.querySelector('.site').value = login.site || '';
+    el.querySelector('.user').value = login.user || '';
+    if (login.site) {
+      el.querySelector('.pass').placeholder = 'unverändert';
+    }
+    el.querySelector('button').onclick = () => el.remove();
+    $('logins').appendChild(el);
+  }
+
+  $('add').onclick = () => addLogin({});
+
+  // Model lists from the public OpenRouter catalog. Both lists only contain models that can call
+  // tools, ranked by the Artificial Analysis intelligence index that OpenRouter includes.
+  const perMillion = (p) => Number(p) * 1e6;
+  const money = (v) => (v === 0 ? 'gratis' : `$${v < 1 ? v.toFixed(2) : v.toFixed(v < 10 ? 2 : 1)}`);
+  const score = (m) => (m.benchmarks && m.benchmarks.artificial_analysis && m.benchmarks.artificial_analysis.intelligence_index) || 0;
+
+  function markSelected() {
+    document.querySelectorAll('.m').forEach((b) => b.classList.toggle('on', b.dataset.id === $('model').value.trim()));
+  }
+  $('model').addEventListener('input', markSelected);
+
+  function renderGroup(title, models) {
+    const group = document.createElement('div');
+    const head = document.createElement('div');
+    head.className = 'group';
+    head.textContent = title;
+    group.appendChild(head);
+    models.forEach((m) => {
+      const price = perMillion(m.pricing.prompt) === 0 && perMillion(m.pricing.completion) === 0
+        ? 'gratis'
+        : `${money(perMillion(m.pricing.prompt))} / ${money(perMillion(m.pricing.completion))}`;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'm';
+      b.dataset.id = m.id;
+      const name = document.createElement('b');
+      name.textContent = m.name.replace(/^[^:]+:\s*/, '');
+      const meta = document.createElement('span');
+      meta.textContent = `${m.id}`;
+      const info = document.createElement('span');
+      info.className = price === 'gratis' ? 'free' : '';
+      info.textContent = ` · ${price} · ${Math.round(m.context_length / 1000)}k Kontext${score(m) ? ` · Index ${score(m).toFixed(0)}` : ''}`;
+      b.append(name, meta, info);
+      b.onclick = () => { $('model').value = m.id; markSelected(); };
+      group.appendChild(b);
+    });
+    return group;
+  }
+
+  fetch('https://openrouter.ai/api/v1/models').then((r) => r.json()).then(({ data }) => {
+    const usable = data.filter((m) => (m.supported_parameters || []).includes('tools')
+      && !m.id.startsWith('~') && !m.id.endsWith(':batch') && !m.id.endsWith(':nitro') && !m.id.endsWith(':floor'));
+    const isFree = (m) => perMillion(m.pricing.prompt) === 0 && perMillion(m.pricing.completion) === 0;
+    const byRank = (a, b) => score(b) - score(a) || b.created - a.created;
+    const top = usable.filter((m) => !isFree(m)).sort(byRank).slice(0, 10);
+    const free = usable.filter(isFree).sort(byRank).slice(0, 10);
+    $('models').innerHTML = '';
+    $('models').append(renderGroup('Top 10 (bezahlt)', top), renderGroup('Top 10 gratis', free));
+    markSelected();
+  }).catch(() => {
+    $('models').innerHTML = '<small>Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.</small>';
+  });
+
+  fetch(`${base}/state`).then((r) => r.json()).then(open).then((state) => {
+    $('model').value = state.model;
+    markSelected();
+    if (state.hasKey) {
+      $('key').placeholder = 'unverändert';
+      $('keyNote').textContent = 'Es ist schon ein Schlüssel gespeichert.';
+    }
+    state.logins.forEach(addLogin);
+  }).catch(() => { $('msg').className = 'err'; $('msg').textContent = 'Link abgelaufen. Im Auto neu koppeln.'; });
+
+  $('save').onclick = async () => {
+    const logins = [...document.querySelectorAll('.login')].map((el) => ({
+      site: el.querySelector('.site').value,
+      user: el.querySelector('.user').value,
+      pass: el.querySelector('.pass').value,
+    }));
+    $('msg').className = '';
+    $('msg').textContent = 'Sende ...';
+    try {
+      await post('save', { openrouterKey: $('key').value, model: $('model').value, logins });
+      $('msg').className = 'ok';
+      $('msg').textContent = 'Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.';
+    } catch (e) {
+      $('msg').className = 'err';
+      $('msg').textContent = 'Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.';
+    }
+  };
+</script>
+</body>
+</html>

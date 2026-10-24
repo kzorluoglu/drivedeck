@@ -13,8 +13,10 @@ HTML/JS mit three.js für die 3D-Ansicht und Leaflet für die Karte.
 - Navigation komplett Open Source: Suche über Photon (OpenStreetMap), Route über OSRM,
   Abbiegehinweise auf Deutsch, automatisches Neuberechnen, Sprachausgabe über Google TTS.
 - Eigene Bildschirmtastatur (DE/TR), weil die Android-Tastatur bei 720 px Höhe das Layout zerdrückt.
-- App-Starter mit allen installierten Apps (YouTube, Netflix, Spotify, Chrome ...) und eigenen
-  Web-Apps (Notizen, Malen, 2048, Snake, Karaoke). Kurzbefehle im Dock per langem Druck.
+- App-Starter nur mit den eigenen Web-Apps (Assistent, Notizen, Malen, 2048, Snake, Karaoke), keine
+  installierten Android-Apps. Kurzbefehle im Dock per langem Druck.
+- Assistent: KI über OpenRouter, die einen eingebauten Browser bedient (öffnen, lesen, klicken, tippen).
+  Schlüssel und Anmeldungen kommen per QR-Code vom Handy (siehe unten), nur im Stand nutzbar.
 - Video, Spiele und Malen sind während der Fahrt (über 5 km/h) gesperrt.
 - FPS-Anzeige. Ziel ist eine stabile 30 FPS, das Display der Box läuft mit 30 Hz.
 
@@ -36,6 +38,14 @@ tools/
   drive.mjs                                Fahrsimulator: echte OSRM-Route als GPS in den Emulator
   model-pipeline/                          Blender- und gltf-transform-Skripte für Concept 011
 ```
+
+## APK herunterladen und installieren
+
+Fertige APKs liegen unter **Releases** des GitHub-Repos. Ein neuer Release entsteht, wenn man einen Tag
+wie `v1.1` pusht (`git tag v1.2 && git push origin v1.2`), GitHub Actions baut dann die signierte APK.
+Alle Builds sind mit demselben Schlüssel (`app/release.keystore`) signiert, eine neue APK lässt sich also
+über die alte installieren, ohne Daten zu verlieren. Auf der Box: APK im Browser laden, antippen,
+"Unbekannte Apps installieren" erlauben. USB-Debugging ist dafür nicht nötig.
 
 ## Bauen und installieren
 
@@ -70,6 +80,21 @@ Das AVD `tbox` bildet Display (1816×720, 240 dpi, 30 Hz), RAM (4 GB), Android 1
 Box nach. Die GPU lässt sich nicht exakt nachbilden: Bei leichten Szenen liefert der Emulator die
 gleichen FPS wie die Box, bei schwerer 3D-Last etwa die Hälfte. Was im Emulator 30 FPS schafft,
 läuft auf der Box flüssig.
+
+## Assistent und Handy-Kopplung
+
+Im Assistenten zeigt die Box einen QR-Code. Das Handy (selbes WLAN oder Hotspot) öffnet damit eine
+Seite, die die Box kurz selbst ausliefert (Port 8765, Link mit Einmal-Token, 10 Minuten gültig). Dort
+gibt man den OpenRouter-Schlüssel, das Modell und optional Anmeldungen (Seite, Benutzer, Passwort) ein.
+Die Daten werden mit einem Android-Keystore-Schlüssel verschlüsselt gespeichert (`SecretStore`). Die
+Oberfläche bekommt sie nie zurück: Die Anfragen an OpenRouter laufen über Java, und das Werkzeug `login`
+trägt Benutzer und Passwort direkt in die Seite ein, ohne dass die KI sie sieht.
+
+Grenzen: Die Übertragung ans Auto ist unverschlüsseltes HTTP im lokalen Netz. Google blockiert die
+Anmeldung in eingebetteten Browsern teilweise oder verlangt 2FA am Handy.
+
+Test im Emulator: `adb forward tcp:8765 tcp:8765`, die Pairing-URL (IP durch `localhost` ersetzen) im
+Browser des Rechners öffnen.
 
 ## Performance-Regeln für die Box
 

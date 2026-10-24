@@ -23,6 +23,43 @@
     return note.text.split('\n')[0].trim() || 'Neue Notiz';
   }
 
+  // Used by the assistant. Works on the stored notes, the notes app reloads them when it opens.
+  window.core.notes = {
+    list() {
+      return load().map((n) => ({ id: n.id, title: title(n), text: n.text.slice(0, 300), updated: new Date(n.updated).toLocaleString('de-DE') }));
+    },
+    read(id) {
+      const note = load().find((n) => n.id === id);
+      return note ? { id: note.id, text: note.text } : { error: 'Notiz nicht gefunden' };
+    },
+    add(text) {
+      const notes = load();
+      const note = { id: Date.now(), text, updated: Date.now() };
+      notes.unshift(note);
+      save(notes);
+      return { ok: true, id: note.id };
+    },
+    append(id, text) {
+      const notes = load();
+      const note = notes.find((n) => n.id === id);
+      if (!note) {
+        return { error: 'Notiz nicht gefunden' };
+      }
+      note.text = note.text ? `${note.text}\n${text}` : text;
+      note.updated = Date.now();
+      save(notes);
+      return { ok: true };
+    },
+    remove(id) {
+      const notes = load();
+      if (!notes.some((n) => n.id === id)) {
+        return { error: 'Notiz nicht gefunden' };
+      }
+      save(notes.filter((n) => n.id !== id));
+      return { ok: true };
+    },
+  };
+
   window.WebApps.register({
     id: 'notes',
     label: 'Notizen',

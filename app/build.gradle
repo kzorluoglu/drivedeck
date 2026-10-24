@@ -10,8 +10,25 @@ android {
         applicationId 'com.koray.tboxtesla'
         minSdk 28
         targetSdk 33
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1'
+    }
+
+    // One fixed key for every build (local and CI), so a new APK installs over the old one and keeps
+    // the app's data. It is a personal sideloaded app, the key is not a secret.
+    signingConfigs {
+        release {
+            storeFile file('release.keystore')
+            storePassword 'drivedeck'
+            keyAlias 'drivedeck'
+            keyPassword 'drivedeck'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
     }
 
     compileOptions {

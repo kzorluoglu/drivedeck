@@ -21,6 +21,7 @@
     <div class="speed">
       <div id="speed">0</div>
       <div class="unit">KM/H</div>
+      <div id="speed-limit" class="speed-limit" hidden></div>
     </div>
 
     <canvas id="car3d"></canvas>
@@ -54,6 +55,7 @@
     </div>
 
     <div class="top-status">
+      <span id="weather"></span>
       <span id="gps-state">GPS ...</span>
       <span id="clock">--:--</span>
     </div>
@@ -88,9 +90,13 @@
       <span><small>Höhe</small><b id="altitude">--</b></span>
       <span><small>Kurs</small><b id="course">--</b></span>
       <span><small>Genauigkeit</small><b id="accuracy">--</b></span>
+      <span class="obd-extra" hidden><small>Drehzahl</small><b id="obd-rpm">--</b></span>
+      <span class="obd-extra" hidden><small>Kühlmittel</small><b id="obd-coolant">--</b></span>
     </div>
 
     <div id="dock-apps" class="dock-apps"></div>
+
+    <button id="media-btn" class="dock-btn" hidden></button>
 
     <button class="dock-btn" data-sheet="apps" title="Apps">
       <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>
@@ -132,12 +138,21 @@
 <script src="lib/RGBELoader.js"></script>
 <script src="lib/meshopt_decoder.js"></script>
 <script src="lib/leaflet.js"></script>
+<script src="lib/qrcode.js"></script>
 <script src="car3d.js"></script>
 <script src="app.js"></script>
 <script src="keyboard.js"></script>
 <script src="nav.js"></script>
 <script src="apps.js"></script>
+<script src="weather.js"></script>
+<script src="speedlimit.js"></script>
+<script src="reminders.js"></script>
+<script src="media.js"></script>
+<script src="browser.js"></script>
+<script src="apps/assistant.js"></script>
 <script src="apps/notes.js"></script>
+<script src="apps/obd.js"></script>
+<script src="inbox.js"></script>
 <script src="apps/paint.js"></script>
 <script src="apps/game2048.js"></script>
 <script src="apps/snake.js"></script>

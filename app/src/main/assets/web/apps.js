@@ -1,20 +1,17 @@
 (function () {
   'use strict';
 
-  const { state, device, $, toast } = window.core;
+  const { state, $, toast } = window.core;
 
-  // Like in a Tesla, video and games are only available while standing still.
+  // Like in a Tesla, video, games and the browser are only available while standing still.
   const MAX_PARKED_SPEED = 5;
-  const PARKED_ONLY_PACKAGES = ['com.google.android.youtube', 'com.netflix.mediaclient', 'org.videolan.vlc'];
-  const BROWSER_PACKAGE = 'com.android.chrome';
   const DOCK_KEY = 'dockApps';
   const DOCK_MAX = 6;
-  const DOCK_DEFAULT = ['pkg:com.spotify.music', 'pkg:com.google.android.youtube', 'web:notes'];
+  const DOCK_DEFAULT = ['web:assistant', 'web:notes'];
   const LONG_PRESS_MS = 550;
 
   const webApps = [];
   let current = null;
-  let nativeApps = null;
 
   /**
    * Web apps register themselves with {id, label, color, icon (SVG markup), parkedOnly, mount(el)}.
@@ -25,19 +22,6 @@
       webApps.push(app);
     },
   };
-
-  // The browser is the real Chrome, the tile only exists so it sits next to the other apps.
-  window.WebApps.register({
-    id: 'browser',
-    label: 'Browser',
-    color: '#2563eb',
-    icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
-    launch() {
-      if (!device || !device.launchApp(BROWSER_PACKAGE)) {
-        toast('Chrome ist nicht installiert');
-      }
-    },
-  });
 
   function isMoving() {
     return state.speed > MAX_PARKED_SPEED;
@@ -77,27 +61,6 @@
       toast('App wegen Fahrt geschlossen');
     }
   }, 1000);
-
-  function loadNativeApps() {
-    if (!nativeApps) {
-      try {
-        nativeApps = device ? JSON.parse(device.getApps()) : [];
-      } catch (e) {
-        nativeApps = [];
-      }
-      nativeApps.sort((a, b) => a.label.localeCompare(b.label, 'de'));
-    }
-    return nativeApps;
-  }
-
-  function launchNative(app) {
-    if (PARKED_ONLY_PACKAGES.includes(app.pkg) && isMoving()) {
-      toast('Video nur im Stand');
-      return;
-    }
-    window.core.closeSheet();
-    device.launchApp(app.pkg);
-  }
 
   /**
    * Calls onLongPress after a long touch and suppresses the click that follows it.
@@ -144,7 +107,8 @@
   function readDock() {
     try {
       const stored = JSON.parse(localStorage.getItem(DOCK_KEY));
-      return Array.isArray(stored) ? stored : DOCK_DEFAULT.slice();
+      // shortcuts to installed apps ("pkg:") from older versions are dropped
+      return Array.isArray(stored) ? stored.filter((id) => id.startsWith('web:')) : DOCK_DEFAULT.slice();
     } catch (e) {
       return DOCK_DEFAULT.slice();
     }
@@ -159,13 +123,8 @@
   }
 
   function resolve(id) {
-    const [kind, key] = [id.slice(0, 3), id.slice(4)];
-    if (kind === 'web') {
-      const app = webApps.find((a) => a.id === key);
-      return app && { label: app.label, locked: Boolean(app.parkedOnly), web: app, launch: () => openWebApp(app) };
-    }
-    const app = loadNativeApps().find((a) => a.pkg === key);
-    return app && { label: app.label, locked: PARKED_ONLY_PACKAGES.includes(app.pkg), icon: app.icon, launch: () => launchNative(app) };
+    const app = webApps.find((a) => `web:${a.id}` === id);
+    return app && { label: app.label, locked: Boolean(app.parkedOnly), web: app, launch: () => openWebApp(app) };
   }
 
   function togglePin(id) {
@@ -199,16 +158,9 @@
       if (!entry) {
         return;
       }
-      let icon;
-      if (entry.web) {
-        icon = document.createElement('div');
-        icon.style.background = entry.web.color;
-        icon.innerHTML = entry.web.icon;
-      } else {
-        icon = document.createElement('img');
-        icon.src = entry.icon;
-        icon.alt = '';
-      }
+      const icon = document.createElement('div');
+      icon.style.background = entry.web.color;
+      icon.innerHTML = entry.web.icon;
       icon.className = 'dock-app-icon';
       const btn = document.createElement('button');
       btn.className = 'dock-app';
@@ -244,23 +196,9 @@
       ownGrid.appendChild(appTile(app.label, icon, Boolean(app.parkedOnly) && moving, () => openWebApp(app), `web:${app.id}`));
     });
 
-    const nativeTitle = document.createElement('h2');
-    nativeTitle.className = 'sub';
-    nativeTitle.textContent = 'Installiert';
-    const nativeGrid = document.createElement('div');
-    nativeGrid.className = 'app-grid';
-    loadNativeApps().forEach((app) => {
-      const icon = document.createElement('img');
-      icon.className = 'app-icon';
-      icon.src = app.icon;
-      icon.alt = '';
-      const locked = PARKED_ONLY_PACKAGES.includes(app.pkg) && moving;
-      nativeGrid.appendChild(appTile(app.label, icon, locked, () => launchNative(app), `pkg:${app.pkg}`));
-    });
-
     const hint = document.createElement('p');
     hint.className = 'credits';
     hint.textContent = 'Lange drücken, um eine App ins Dock zu legen oder daraus zu entfernen.';
-    container.append(hint, ownTitle, ownGrid, nativeTitle, nativeGrid);
+    container.append(hint, ownTitle, ownGrid);
   };
 })();

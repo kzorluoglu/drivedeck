@@ -197,6 +197,24 @@
     }
   }
 
+  /**
+   * Search without touching the search box, for the assistant: [{title, detail, lat, lng, distance}].
+   */
+  async function lookup(query) {
+    const params = new URLSearchParams({ q: query, limit: '5', lang: 'de' });
+    if (position) {
+      params.set('lat', position[0]);
+      params.set('lon', position[1]);
+    }
+    const response = await fetch(`${PHOTON_URL}?${params}`);
+    const data = await response.json();
+    return (data.features || []).map((feature) => {
+      const { title, detail } = placeLabel(feature.properties);
+      const [lng, lat] = feature.geometry.coordinates;
+      return { title, detail, lat, lng, distance: position ? formatDistance(distance(position, [lat, lng])) : undefined };
+    });
+  }
+
   function showResults(features) {
     results.innerHTML = '';
     if (!features.length) {
@@ -294,13 +312,13 @@
   async function startRoute(destination, isReroute) {
     if (!position) {
       toast('Noch kein GPS Signal');
-      return;
+      return false;
     }
     try {
       route = await fetchRoute(destination);
     } catch (e) {
       toast('Route konnte nicht berechnet werden');
-      return;
+      return false;
     }
     // step 0 is "depart" at the current position, the first real maneuver is step 1
     stepIndex = Math.min(1, route.steps.length - 1);
@@ -310,6 +328,7 @@
     $('nav-banner').hidden = false;
     $('nav-summary').hidden = false;
     $('search').hidden = true;
+    chips.hidden = true;
 
     if (isReroute) {
       say('Route wird neu berechnet');
@@ -318,6 +337,7 @@
       say(`Route nach ${destination.title}. ${spokenDuration(route.duration)}.`);
     }
     update();
+    return true;
   }
 
   function stopRoute() {
@@ -327,6 +347,7 @@
     $('nav-banner').hidden = true;
     $('nav-summary').hidden = true;
     $('search').hidden = false;
+    renderChips();
   }
 
   $('nav-stop').addEventListener('click', stopRoute);
@@ -379,6 +400,193 @@
     $('nav-eta').textContent = new Date(Date.now() + seconds * 1000)
       .toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   }
+
+  function status() {
+    if (!route) {
+      return { active: false };
+    }
+    const next = route.steps[stepIndex];
+    let remaining = position ? distance(position, next.loc) : 0;
+    for (let i = stepIndex; i < route.steps.length; i++) {
+      remaining += route.steps[i].distance;
+    }
+    const seconds = route.duration * (remaining / route.distance);
+    return {
+      active: true,
+      destination: route.destination.title,
+      remaining: formatDistance(remaining),
+      duration: formatDuration(seconds),
+      arrival: new Date(Date.now() + seconds * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      next: instruction(next),
+      distanceToNext: position ? formatDistance(distance(position, next.loc)) : undefined,
+      seconds,
+    };
+  }
+
+  // Saved places ("Zuhause", "Arbeit", ...), stored as [{name, title, lat, lng}]
+
+  const PLACES_KEY = 'places';
+  const chips = document.createElement('div');
+  chips.className = 'place-chips';
+  $('map-panel').appendChild(chips);
+
+  function loadPlaces() {
+    try {
+      return JSON.parse(localStorage.getItem(PLACES_KEY)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function savePlaces(places) {
+    try {
+      localStorage.setItem(PLACES_KEY, JSON.stringify(places));
+    } catch (e) {
+      toast('Ort konnte nicht gespeichert werden');
+    }
+    renderChips();
+  }
+
+  function renderChips() {
+    chips.innerHTML = '';
+    loadPlaces().forEach((place) => {
+      const chip = document.createElement('button');
+      chip.className = 'place-chip';
+      chip.textContent = place.name;
+      chip.addEventListener('click', () => startRoute(place));
+      chips.appendChild(chip);
+    });
+    chips.hidden = !chips.childElementCount || Boolean(route);
+  }
+  renderChips();
+
+  function normalize(text) {
+    return text.trim().toLowerCase();
+  }
+
+  const places = {
+    list: () => loadPlaces().map((p) => ({ name: p.name, title: p.title })),
+    find(query) {
+      const q = normalize(query);
+      return loadPlaces().find((p) => normalize(p.name) === q) || null;
+    },
+    save(name, spot) {
+      const rest = loadPlaces().filter((p) => normalize(p.name) !== normalize(name));
+      rest.push({ name: name.trim(), title: spot.title || name, lat: spot.lat, lng: spot.lng });
+      savePlaces(rest);
+    },
+    remove(name) {
+      const before = loadPlaces();
+      const rest = before.filter((p) => normalize(p.name) !== normalize(name));
+      savePlaces(rest);
+      return rest.length < before.length;
+    },
+  };
+
+  // Nearby places from OpenStreetMap (Overpass), around the car or along the route
+
+  // The public Overpass servers are often busy, so a few mirrors are tried one after the other.
+  const OVERPASS_URLS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+  ];
+
+  async function overpass(query) {
+    let failure;
+    for (const url of OVERPASS_URLS) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          body: `data=${encodeURIComponent(query)}`,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        failure = new Error(`HTTP ${response.status}`);
+      } catch (e) {
+        failure = e;
+      }
+    }
+    throw failure;
+  }
+  window.core.overpass = overpass;
+
+  const POI_FILTERS = {
+    fuel: '["amenity"="fuel"]',
+    charging: '["amenity"="charging_station"]',
+    parking: '["amenity"="parking"]',
+    restaurant: '["amenity"="restaurant"]',
+    cafe: '["amenity"="cafe"]',
+    pharmacy: '["amenity"="pharmacy"]',
+    supermarket: '["shop"="supermarket"]',
+    hospital: '["amenity"="hospital"]',
+    atm: '["amenity"="atm"]',
+    toilets: '["amenity"="toilets"]',
+  };
+  const ALONG_ROUTE_M = 600;
+  const ALONG_ROUTE_POINTS = 40;
+
+  async function nearby(category, radius, alongRoute) {
+    const filter = POI_FILTERS[category];
+    if (!filter) {
+      return { error: `Unbekannte Kategorie, erlaubt: ${Object.keys(POI_FILTERS).join(', ')}` };
+    }
+    if (!position) {
+      return { error: 'Noch kein GPS Signal' };
+    }
+    let area = `around:${Math.min(Math.max(radius || 3000, 300), 20000)},${position[0]},${position[1]}`;
+    if (alongRoute && route) {
+      const step = Math.max(1, Math.floor(route.coords.length / ALONG_ROUTE_POINTS));
+      const sampled = route.coords.filter((_, i) => i % step === 0);
+      area = `around:${ALONG_ROUTE_M},${sampled.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join(',')}`;
+    }
+    const query = `[out:json][timeout:15];nwr(${area})${filter};out center 60;`;
+    try {
+      const data = await overpass(query);
+      return data.elements
+        .map((e) => {
+          const lat = e.lat !== undefined ? e.lat : e.center && e.center.lat;
+          const lng = e.lon !== undefined ? e.lon : e.center && e.center.lon;
+          const tags = e.tags || {};
+          const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
+          return {
+            title: tags.name || tags.brand || tags.operator || category,
+            detail: [street, tags['addr:city']].filter(Boolean).join(', '),
+            lat,
+            lng,
+            meters: lat === undefined ? Infinity : distance(position, [lat, lng]),
+            opening: tags.opening_hours,
+          };
+        })
+        .filter((p) => p.lat !== undefined)
+        .sort((a, b) => a.meters - b.meters)
+        .slice(0, 8)
+        .map((p) => ({ ...p, distance: formatDistance(p.meters) }));
+    } catch (e) {
+      return { error: 'Suche fehlgeschlagen, Internet prüfen' };
+    }
+  }
+
+  // Used by the assistant
+  window.core.nav = {
+    places,
+    nearby,
+    position: () => position,
+    destination: () => (route ? { ...route.destination, seconds: status().seconds } : null),
+    lookup,
+    async start(destination) {
+      const ok = await startRoute(destination);
+      return ok ? { ok: true, ...status() } : { error: position ? 'Route konnte nicht berechnet werden' : 'Noch kein GPS Signal' };
+    },
+    stop() {
+      stopRoute();
+      return { ok: true };
+    },
+    status,
+  };
 
   window.addEventListener('gps', (e) => {
     position = [e.detail.latitude, e.detail.longitude];
