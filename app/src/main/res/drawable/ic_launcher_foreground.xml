@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- a gauge with the navigation arrow of the car in the middle -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- track of the gauge -->
+    <path
+        android:pathData="M34.9,73.1A27,27 0 1,1 73.1,73.1"
+        android:strokeColor="#2F323C"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+    <!-- filled part -->
+    <path
+        android:pathData="M34.9,73.1A27,27 0 1,1 76.6,32.5"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="30"
+                android:startY="76"
+                android:endX="78"
+                android:endY="30"
+                android:startColor="#3E6AE1"
+                android:endColor="#4FD1E8" />
+        </aapt:attr>
+    </path>
+    <!-- navigation arrow -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,36.5L65.5,66L54,59.5L42.5,66Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineJoin="round" />
+    <!-- speed tick marks -->
+    <path
+        android:pathData="M54,22.5L54,25.5M30.5,32L32.6,34.1M77.5,32L75.4,34.1"
+        android:strokeColor="#8E93A3"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+</vector>
