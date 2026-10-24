@@ -256,15 +256,19 @@ svg {
   align-items: center;
   justify-content: space-between;
   padding: 0 3vw;
-  background: #050506;
-  border-top: 1px solid #1d1e22;
+  background: #17181c;
+  border-top: 1px solid #2a2b31;
+  box-shadow: 0 -0.6vh 2vh rgba(0, 0, 0, 0.5);
 }
 
 .dock-btn {
-  width: 8vh;
-  height: 8vh;
-  display: grid;
-  place-items: center;
+  width: 10vh;
+  height: 11vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5vh;
   border-radius: 1.6vh;
   transition: background 0.2s;
 }
@@ -1534,4 +1538,127 @@ svg {
 
 .obd-extra[hidden] {
   display: none;
+}
+
+/* Dock: every entry is an icon with a caption, like the Tesla bar */
+
+.dock-label {
+  font-size: 1.9vh;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dock-app {
+  width: 10vh;
+  height: 11vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5vh;
+}
+
+.dock-app-icon {
+  width: 7vh;
+  height: 7vh;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.dock-app-icon svg {
+  width: 4.2vh;
+  height: 4.2vh;
+}
+
+.dock-btn[data-sheet="car"] svg {
+  width: 4.6vh;
+  height: 4.6vh;
+  padding: 1vh;
+  box-sizing: content-box;
+  border-radius: 2vh;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.dock-btn[data-sheet="apps"] svg {
+  width: 4.2vh;
+  height: 4.2vh;
+  padding: 1.4vh;
+  box-sizing: content-box;
+  border-radius: 2vh;
+  background: var(--accent);
+  fill: #fff;
+  stroke: none;
+}
+
+.dock-btn[data-sheet="apps"] .dock-label {
+  color: var(--text);
+}
+
+/* Virtual mouse: a pointer moved with the arrow keys of the car */
+
+#vmouse-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 3001;
+  width: 4.4vh;
+  height: 4.4vh;
+  pointer-events: none;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
+}
+
+#vmouse-cursor svg {
+  width: 100%;
+  height: 100%;
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 1.2;
+}
+
+/* Dock layout: the apps button sits right next to the shortcuts, the free space goes around the group */
+
+#dock {
+  justify-content: flex-start;
+}
+
+.dock-apps {
+  margin-left: auto;
+}
+
+#media-btn, .dock-btn[data-sheet="apps"] {
+  margin-left: 1.6vw;
+}
+
+.volume {
+  margin-left: auto;
+}
+
+.dock-btn[hidden] {
+  display: none;
+}
+
+.trip {
+  margin-left: 2vw;
+}
+
+#vmouse-cursor span {
+  display: none;
+  position: absolute;
+  left: 2.6vh;
+  top: 2.6vh;
+  padding: 0 0.6vh;
+  border-radius: 0.8vh;
+  background: var(--accent);
+  font-size: 2.6vh;
+  line-height: 1.2;
+}
+
+#vmouse-cursor.scroll span {
+  display: block;
+}
+
+#vmouse-cursor.drag svg {
+  fill: var(--accent);
 }

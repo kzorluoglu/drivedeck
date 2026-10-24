@@ -84,6 +84,7 @@
   <footer id="dock">
     <button class="dock-btn" data-sheet="car" title="Fahrzeug">
       <svg viewBox="0 0 24 24"><path d="M3 15l2-5a3 3 0 0 1 3-2h8a3 3 0 0 1 3 2l2 5v3H3z"/><circle cx="7" cy="16" r="1.5"/><circle cx="17" cy="16" r="1.5"/></svg>
+      <span class="dock-label">Fahrzeug</span>
     </button>
 
     <div class="trip">
@@ -100,6 +101,7 @@
 
     <button class="dock-btn" data-sheet="apps" title="Apps">
       <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>
+      <span class="dock-label">Apps</span>
     </button>
 
     <div class="volume">
@@ -128,6 +130,8 @@
   <h2 class="sub">Einstellungen</h2>
   <div class="tiles">
     <button class="tile" data-toggle="fpsVisible"><b>FPS Anzeige</b><small data-label="fpsVisible"></small></button>
+    <button class="tile" data-toggle="vmouse"><b>Maus</b><small data-label="vmouse"></small></button>
+    <button class="tile" data-toggle="eco"><b>3D Qualität</b><small data-label="eco"></small></button>
     <button class="tile" data-action="reload"><b>Neu laden</b><small>Seite</small></button>
   </div>
   <p class="credits">Concept 011: Sketchfab, CC0 &middot; Concept: eigenes Blender Modell &middot; weitere 3D Modelle: Car Kit von Kenney (CC0) &middot; Karte: Esri &middot; Suche: Photon / OpenStreetMap &middot; Routen: OSRM</p>
@@ -149,6 +153,7 @@
 <script src="reminders.js"></script>
 <script src="media.js"></script>
 <script src="browser.js"></script>
+<script src="mouse.js"></script>
 <script src="apps/assistant.js"></script>
 <script src="apps/notes.js"></script>
 <script src="apps/obd.js"></script>

@@ -6,6 +6,7 @@
   const COMPASS = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
   const TYPE_STORAGE_KEY = 'carTypeV2';
   const PAINT_STORAGE_KEY = 'paint';
+  const ECO_STORAGE_KEY = 'eco3d';
 
   // Native bridge from MainActivity, missing when the page is opened in a desktop browser.
   const device = window.TBox || null;
@@ -18,12 +19,16 @@
     paint: readStored(PAINT_STORAGE_KEY, 'silver'),
     orbit: false,
     fpsVisible: true,
+    eco: readStored(ECO_STORAGE_KEY, '1') === '1',
+    vmouse: readStored('vmouse', '0') === '1',
   };
 
   const labels = {
     orbit: (v) => (v ? 'An' : 'Aus'),
     doorsOpen: (v) => (v ? 'Offen' : 'Zu'),
     fpsVisible: (v) => (v ? 'Sichtbar' : 'Versteckt'),
+    eco: (v) => (v ? 'Sparsam (30 FPS)' : 'Volle Qualität'),
+    vmouse: (v) => (v ? 'An' : 'Aus'),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -167,7 +172,7 @@
 
   // Car type
 
-  const car = window.createCarScene($('car3d'));
+  const car = window.createCarScene($('car3d'), { eco: state.eco });
 
   function selectType(key) {
     if (!window.CAR_TYPES[key]) {
@@ -238,6 +243,14 @@
   const effects = {
     fpsVisible(on) {
       $('fps').hidden = !on;
+    },
+    vmouse(on) {
+      window.core.setMouse(on);
+    },
+    eco(on) {
+      // antialiasing and render scale are fixed when the renderer is created
+      store(ECO_STORAGE_KEY, on ? '1' : '0');
+      location.reload();
     },
   };
 
@@ -353,6 +366,17 @@
   let maxFps = 0;
 
   function frame(now) {
+    requestAnimationFrame(frame);
+
+    // nothing to draw while the car panel is hidden (cinema layout) or the app is in the background
+    if (document.hidden || !$('car3d').offsetParent) {
+      last = now;
+      return;
+    }
+    const interval = state.eco ? 1000 / 30 : 0;
+    if (now - last < interval - 4) {
+      return;
+    }
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
 
@@ -368,8 +392,6 @@
       fpsWindowStart = now;
       framesInWindow = 0;
     }
-
-    requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 })();

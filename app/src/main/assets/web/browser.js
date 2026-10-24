@@ -55,6 +55,8 @@
     available: Boolean(device && device.browserShow),
     // set once a page was loaded, so other modules only talk to a browser that exists
     used: false,
+    // screen rectangle of the visible browser pane, for the virtual mouse
+    paneRect: null,
 
     eval(expression) {
       return call((id) => device.browserEval(id, expression));
@@ -121,6 +123,7 @@
           return;
         }
         const r = el.getBoundingClientRect();
+        browser.paneRect = r;
         const key = [r.left, r.top, r.width, r.height].map(Math.round).join();
         if (key !== last) {
           last = key;
@@ -139,6 +142,7 @@
         suspend() {
           wasShown = shown;
           shown = false;
+          browser.paneRect = null;
           device.browserHide();
         },
         resume() {
@@ -149,6 +153,7 @@
         destroy() {
           clearInterval(timer);
           shown = false;
+          browser.paneRect = null;
           device.browserHide();
         },
       };

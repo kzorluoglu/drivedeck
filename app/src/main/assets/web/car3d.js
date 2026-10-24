@@ -4,6 +4,7 @@
 
   const DASH_SPACING = 5;
   const DASH_ROWS = 30;
+  const DASH_ROWS_ECO = 14;
   const WHEEL_NAME = /^wheel-(front|back)-(left|right)$/;
   const DOOR_NAME = /^door-(left|right)$/;
   const DOOR_OPEN_RAD = 1.22;
@@ -66,9 +67,12 @@
     return mesh;
   }
 
-  window.createCarScene = function (canvas) {
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(1);
+  // eco trades sharpness for GPU time: no MSAA (fixed at creation), a smaller render buffer that the
+  // browser scales up, and only the nearby dashes
+  window.createCarScene = function (canvas, options) {
+    const eco = Boolean(options && options.eco);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !eco, alpha: true, powerPreference: 'low-power' });
+    renderer.setPixelRatio(eco ? 0.65 : 1);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
@@ -93,7 +97,7 @@
     const lineMat = new THREE.MeshBasicMaterial({ color: 0x8e8f97 });
     const dashGeo = new THREE.BoxGeometry(2, 0.01, 0.1);
     const dashes = [];
-    for (let i = 0; i < DASH_ROWS; i++) {
+    for (let i = 0; i < (eco ? DASH_ROWS_ECO : DASH_ROWS); i++) {
       [-1.9, 1.9].forEach((z) => {
         const dash = new THREE.Mesh(dashGeo, lineMat);
         dash.position.set(0, 0.01, z);
@@ -123,6 +127,7 @@
       if (car) {
         applyEnvMap(car.group);
       }
+      dirty = true;
     });
 
     function isReflective(material) {
@@ -222,6 +227,7 @@
         car = { group, wheels, doors, radius, type, paint, angle: 0, door: 0 };
         setPaint(paintKey);
         scene.add(group);
+        dirty = true;
       });
     }
 
@@ -232,6 +238,7 @@
       if (car) {
         car.paint.forEach((material) => material.color.setHex(PAINT_COLORS[paintKey].color));
       }
+      dirty = true;
     }
 
     const parkedPos = new THREE.Vector3();
@@ -244,6 +251,8 @@
     let roadOffset = 0;
     let orbitAngle = 0.6;
     let driveBlend = 0;
+    // the scene is static unless something moves, so frames are only drawn when this is set
+    let dirty = true;
 
     function resize() {
       const w = canvas.clientWidth;
@@ -253,6 +262,7 @@
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
+        dirty = true;
       }
     }
 
@@ -267,6 +277,13 @@
       },
       render(dt, state) {
         resize();
+        const doorTarget = state.doorsOpen ? 1 : 0;
+        const settled = Math.abs((state.speed > 2 && !state.orbit ? 1 : 0) - driveBlend) < 0.002;
+        const animating = state.speed > 0.1 || state.orbit || !settled || (car && car.door !== doorTarget);
+        if (!dirty && !animating) {
+          return;
+        }
+        dirty = false;
         const distance = (state.speed / 3.6) * dt;
         const moving = state.speed > 2 && !state.orbit;
 
@@ -291,7 +308,9 @@
         }
 
         driveBlend += ((moving ? 1 : 0) - driveBlend) * Math.min(1, dt * 1.5);
-        orbitAngle += dt * 0.25 * (1 - driveBlend);
+        if (state.orbit) {
+          orbitAngle += dt * 0.25 * (1 - driveBlend);
+        }
         parkedPos.set(Math.cos(orbitAngle) * 10.5, 4.2, Math.sin(orbitAngle) * 10.5);
         camera.position.lerpVectors(parkedPos, drivePos, driveBlend);
         camTarget.lerpVectors(parkedTarget, driveTarget, driveBlend);

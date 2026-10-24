@@ -166,7 +166,11 @@
       btn.className = 'dock-app';
       btn.title = entry.label;
       btn.classList.toggle('locked', entry.locked && dockMoving);
+      const caption = document.createElement('span');
+      caption.className = 'dock-label';
+      caption.textContent = entry.label;
       btn.appendChild(icon);
+      btn.appendChild(caption);
       onPress(btn, entry.launch, () => togglePin(id));
       dock.appendChild(btn);
     });
