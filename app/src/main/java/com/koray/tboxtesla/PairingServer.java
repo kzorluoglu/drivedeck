@@ -43,6 +43,8 @@ class PairingServer {
         void onSaved();
 
         void onMessage(JSONObject message);
+
+        void onUnpair();
     }
 
     static final int PORT = 8765;
@@ -223,7 +225,7 @@ class PairingServer {
             respondCors(out, "drivedeck");
             return;
         }
-        // /p/<token>[/state|/save|/send|/reset-usage]
+        // /p/<token>[/state|/save|/send|/reset-usage|/unpair]
         String[] parts = plain.split("/");
         byte[] key = parts.length < 3 || !parts[1].equals("p") ? null : keyIfValid(parts[2]);
         if (key == null) {
@@ -235,6 +237,10 @@ class PairingServer {
             respond(out, 200, "text/html", readAsset("pair.html"));
         } else if (method.equals("GET") && action.equals("state")) {
             respond(out, 200, "application/json", encrypt(key, state().toString()).toString());
+        } else if (method.equals("POST") && action.equals("unpair")) {
+            // answered with the old key, everything after this needs a new QR code
+            respond(out, 200, "application/json", encrypt(key, "{\"ok\":true}").toString());
+            listener.onUnpair();
         } else if (method.equals("POST") && action.equals("reset-usage")) {
             usage.reset();
             respond(out, 200, "application/json", encrypt(key, "{\"ok\":true}").toString());

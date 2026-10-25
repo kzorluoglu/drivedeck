@@ -117,6 +117,13 @@ public class MainActivity extends Activity {
             public void onMessage(JSONObject message) {
                 callPage(0, "{\"event\":\"inbox\",\"message\":" + message + "}");
             }
+
+            @Override
+            public void onUnpair() {
+                // key, logins and the pairing go, cookies and the browser history too
+                bridge.clearAssistantData();
+                callPage(0, "{\"event\":\"unpaired\"}");
+            }
         });
         // the phone page is always reachable, by IP and as drivedeck.local
         try {
@@ -364,21 +371,23 @@ public class MainActivity extends Activity {
         private final Context context;
         private final AudioManager audio;
         private final CloudVoice cloud;
-        // speech in and out goes through OpenRouter only, the services of Android are not used
+        private final LocalWake wake;
+        // commands and answers go through OpenRouter, only the wake word is heard by Android itself
         private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
             this.context = context;
             cloud = new CloudVoice(context, secrets, usage);
+            wake = new LocalWake(context, cloud::micBusy, (text) -> event("heard", "text", text), (message) -> event("wakeError", "message", message));
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         }
 
         void holdWake(boolean hold) {
-            cloud.holdWake(hold);
+            wake.hold(hold);
         }
 
         void shutdown() {
-            cloud.stopWake();
+            wake.stop();
             cloud.stopSpeaking(true);
         }
 
@@ -551,28 +560,31 @@ public class MainActivity extends Activity {
             speechTag = tag;
         }
 
+        private void event(String name, String field, String value) {
+            try {
+                callPage(0, new JSONObject().put("event", name).put(field, value).toString());
+            } catch (Exception e) {
+                // nothing to report then
+            }
+        }
+
         /**
-         * Listens for the wake word in the background. Everything heard arrives as event {event:"heard", text},
-         * the page decides whether it was meant for the assistant.
+         * Listens for the wake word with the recognizer of Android (offline when possible). Everything heard
+         * arrives as event {event:"heard", text} with the alternatives separated by " | ", the page decides
+         * whether it was meant for the assistant. Problems arrive as {event:"wakeError", message}.
          */
         @JavascriptInterface
         public void setWake(boolean on, String languageTag) {
             runOnUiThread(() -> {
                 if (!on) {
-                    cloud.stopWake();
+                    wake.stop();
                     return;
                 }
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, WAKE_REQUEST);
                     return;
                 }
-                cloud.startWake(languageTag, (text) -> {
-                    try {
-                        callPage(0, new JSONObject().put("event", "heard").put("text", text).toString());
-                    } catch (Exception e) {
-                        // nothing heard then
-                    }
-                });
+                wake.start(languageTag);
             });
         }
 
@@ -592,7 +604,9 @@ public class MainActivity extends Activity {
                     callPage(id, "{\"error\":\"" + CloudVoice.text(languageTag, "nokey") + "\"}");
                     return;
                 }
-                cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
+                // the recognizer of the wake word lets the microphone go first
+                wake.pauseFor(1500);
+                web.postDelayed(() -> cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json)), 300);
             });
         }
 
@@ -704,11 +718,7 @@ public class MainActivity extends Activity {
         }
 
         private void voiceError(String message) {
-            try {
-                callPage(0, new JSONObject().put("event", "voiceError").put("message", message).toString());
-            } catch (Exception e) {
-                // nothing to report then
-            }
+            event("voiceError", "message", message);
         }
 
         @JavascriptInterface

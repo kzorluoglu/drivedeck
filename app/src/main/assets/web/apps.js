@@ -9,19 +9,23 @@
   const MAX_PARKED_SPEED = 5;
   const DOCK_KEY = 'dockApps';
   const DOCK_MAX = 6;
-  const DOCK_DEFAULT = ['web:assistant', 'web:notes'];
+  const DOCK_DEFAULT = ['web:browser', 'web:notes'];
   const LONG_PRESS_MS = 550;
 
   const webApps = [];
   let current = null;
 
   /**
-   * Web apps register themselves with {id, label, color, icon (SVG markup), parkedOnly, mount(el)}.
-   * mount may return a cleanup function that runs when the window closes.
+   * Web apps register themselves with {id, label, color, icon (SVG markup), parkedOnly, hidden, mount(el)}.
+   * mount may return a cleanup function that runs when the window closes. Hidden apps are only opened
+   * by code (the assistant's panels), they do not show up in the launcher or the dock.
    */
   window.WebApps = {
     register(app) {
       webApps.push(app);
+    },
+    has(id) {
+      return webApps.some((a) => a.id === id && !a.hidden);
     },
     open(id) {
       const app = webApps.find((a) => a.id === id);
@@ -132,7 +136,7 @@
   }
 
   function resolve(id) {
-    const app = webApps.find((a) => `web:${a.id}` === id);
+    const app = webApps.find((a) => `web:${a.id}` === id && !a.hidden);
     return app && { label: app.label, locked: Boolean(app.parkedOnly), web: app, launch: () => openWebApp(app) };
   }
 
@@ -201,7 +205,7 @@
     ownTitle.textContent = t('Apps');
     const ownGrid = document.createElement('div');
     ownGrid.className = 'app-grid';
-    webApps.forEach((app) => {
+    webApps.filter((app) => !app.hidden).forEach((app) => {
       const icon = document.createElement('div');
       icon.className = 'app-icon';
       icon.style.background = app.color;
