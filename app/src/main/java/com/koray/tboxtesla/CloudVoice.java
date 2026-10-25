@@ -58,6 +58,11 @@ class CloudVoice {
     private static final int NO_SPEECH_MS = 7000;
     private static final int SILENCE_END_MS = 1300;
     private static final int MAX_MS = 25000;
+    // speech has to be this loud at least, and clearly above the noise of the car
+    private static final double MIN_SPEECH = 150;
+    private static final double OVER_NOISE = 2.5;
+    // the noise level is guessed this high at first, the driver may start talking right away
+    private static final double FIRST_NOISE = 300;
     private static final int CACHE_FILES = 300;
     private static final int AFTER_SPEECH_MS = 500;
 
@@ -75,6 +80,8 @@ class CloudVoice {
     // one recording at a time
     private final Semaphore mic = new Semaphore(1);
     private volatile long quietUntil;
+    // loudest level of the last recording, reported with "nothing understood" to see what the microphone gets
+    private volatile int lastPeak;
 
     CloudVoice(Context context, SecretStore secrets, Usage usage) {
         this.context = context;
@@ -131,7 +138,7 @@ class CloudVoice {
                 if (cancel) {
                     result = "{\"error\":\"" + text(languageTag, "nothing") + "\"}";
                 } else if (pcm == null) {
-                    result = "{\"error\":\"" + text(languageTag, "nothing") + "\"}";
+                    result = "{\"error\":\"" + nothing(languageTag) + "\"}";
                 } else {
                     result = transcribe(pcm, languageTag);
                 }
@@ -156,6 +163,7 @@ class CloudVoice {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         short[] chunk = new short[CHUNK];
         double floor = -1;
+        double peak = 0;
         boolean spoke = false;
         long start = System.currentTimeMillis();
         long lastVoice = start;
@@ -176,16 +184,16 @@ class CloudVoice {
                 out.write(bytes.array(), 0, read * 2);
                 double rms = Math.sqrt(sum / read);
                 long now = System.currentTimeMillis();
-                // the first tenth of a second sets the noise level of the car, speech has to be clearly above it
+                peak = Math.max(peak, rms);
                 if (floor < 0) {
-                    floor = rms;
-                    continue;
+                    floor = Math.min(rms, FIRST_NOISE);
                 }
-                if (rms > Math.max(600, floor * 3)) {
+                if (rms > Math.max(MIN_SPEECH, floor * OVER_NOISE)) {
                     spoke = true;
                     lastVoice = now;
-                } else if (!spoke) {
-                    floor = Math.min(floor, Math.max(rms, 1));
+                } else {
+                    // the noise of the car follows the quiet moments, up and down
+                    floor = floor * 0.9 + Math.max(rms, 1) * 0.1;
                 }
                 if (spoke && now - lastVoice > SILENCE_END_MS) {
                     break;
@@ -201,7 +209,13 @@ class CloudVoice {
             recorder.stop();
             recorder.release();
         }
-        return spoke && !cancel ? out.toByteArray() : null;
+        lastPeak = (int) Math.round(peak);
+        if (cancel) {
+            return null;
+        }
+        // nothing looked like speech, but something was audible: OpenRouter decides, a quiet microphone
+        // in a loud car should not lose the command
+        return spoke || peak >= MIN_SPEECH / 2 ? out.toByteArray() : null;
     }
 
     private static byte[] wav(byte[] pcm, int rate) {
@@ -239,7 +253,7 @@ class CloudVoice {
         usage.addSpeechSeconds(pcm.length / 2.0 / RATE);
         String spoken = new JSONObject(response).optString("text", "").trim();
         return spoken.isEmpty()
-                ? "{\"error\":\"" + text(languageTag, "nothing") + "\"}"
+                ? "{\"error\":\"" + nothing(languageTag) + "\"}"
                 : "{\"text\":" + JSONObject.quote(spoken) + "}";
     }
 
@@ -427,11 +441,19 @@ class CloudVoice {
         return tag.startsWith("en") ? "English" : "German";
     }
 
+    /** "Nothing understood" with the loudest level of the recording, a few hundred is normal speech. */
+    private String nothing(String tag) {
+        return text(tag, "nothing") + " (" + text(tag, "level") + " " + lastPeak + ")";
+    }
+
     static String text(String tag, String key) {
         boolean tr = tag.startsWith("tr");
         boolean en = tag.startsWith("en");
         if (key.equals("nokey")) {
             return tr ? "OpenRouter anahtarı yok, lütfen eşleştir" : en ? "No OpenRouter key, please pair" : "Kein OpenRouter Schlüssel, bitte koppeln";
+        }
+        if (key.equals("level")) {
+            return tr ? "ses seviyesi" : en ? "level" : "Pegel";
         }
         return tr ? "Anlaşılamadı" : en ? "Nothing understood" : "Nichts verstanden";
     }
