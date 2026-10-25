@@ -24,8 +24,6 @@
     vmouse: readStored('vmouse', '0') === '1',
     // above 5 km/h the browser, games and text input are locked, on by default
     driveLock: readStored('driveLock', '1') === '1',
-    // listens for "DriveDeck" and hands what follows to the assistant
-    wake: readStored('wake', '1') === '1',
     // looks for a newer release on GitHub now and then and asks before installing
     autoUpdate: readStored('autoUpdate', '1') === '1',
   };
@@ -37,7 +35,6 @@
     eco: (v) => (v ? 'Sparsam (30 FPS)' : 'Volle Qualität'),
     vmouse: (v) => (v ? 'An' : 'Aus'),
     driveLock: (v) => (v ? 'An (ab 5 km/h)' : 'Aus'),
-    wake: (v) => (v ? 'An' : 'Aus'),
     autoUpdate: (v) => (v ? 'An' : 'Aus'),
   };
 
@@ -274,9 +271,6 @@
   // the voice of the navigation follows the app language from the start, not only after the assistant was opened
   if (device && device.setSpeechLanguage) {
     device.setSpeechLanguage(window.i18n.tag);
-    if (device.setWake) {
-      device.setWake(state.wake, window.i18n.tag);
-    }
   }
 
   const effects = {
@@ -289,12 +283,6 @@
     },
     autoUpdate(on) {
       store('autoUpdate', on ? '1' : '0');
-    },
-    wake(on) {
-      store('wake', on ? '1' : '0');
-      if (device && device.setWake) {
-        device.setWake(on, window.i18n.tag);
-      }
     },
     vmouse(on) {
       window.core.setMouse(on);

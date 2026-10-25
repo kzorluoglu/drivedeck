@@ -36,7 +36,6 @@
     ['„DriveDeck“ hören', '„DriveDeck“ dinle', 'Listen for "DriveDeck"'],
     ['Verlauf', 'Geçmiş', 'History'],
     ['Stimme: {0}', 'Ses: {0}', 'Voice: {0}'],
-    ['Aktivierung: {0}', 'Uyandırma: {0}', 'Wake word: {0}'],
     ['Browser', 'Tarayıcı', 'Browser'],
     ['Suchen oder Adresse', 'Ara veya adres yaz', 'Search or address'],
     ['Der Browser läuft nur in der App.', 'Tarayıcı sadece uygulamada çalışır.', 'The browser only runs in the app.'],

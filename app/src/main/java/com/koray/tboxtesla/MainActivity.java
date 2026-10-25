@@ -43,7 +43,6 @@ public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1;
     private static final int AUDIO_REQUEST = 2;
     private static final int BLUETOOTH_REQUEST = 3;
-    private static final int WAKE_REQUEST = 4;
 
     // Assets are served from this https origin so the page can fetch its own files (3D models)
     // and counts as a secure context for geolocation.
@@ -135,7 +134,6 @@ public class MainActivity extends Activity {
         mdns = new MdnsResponder(this);
         mdns.start();
         bridge = new DeviceBridge(this);
-        pairing.setWakeInfo(bridge::wakeDiagnostics);
         updater = new Updater(this);
         IntentFilter resultFilter = new IntentFilter(Updater.RESULT_ACTION);
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -325,10 +323,6 @@ public class MainActivity extends Activity {
             } else {
                 callPage(listenId, "{\"error\":\"Mikrofon nicht erlaubt\"}");
             }
-        } else if (requestCode == WAKE_REQUEST) {
-            if (granted) {
-                bridge.setWake(true, bridge.speechTag);
-            }
         } else if (requestCode == BLUETOOTH_REQUEST) {
             if (granted && pendingObdAddress != null) {
                 obd.connect(pendingObdAddress);
@@ -342,7 +336,7 @@ public class MainActivity extends Activity {
     }
 
     // Holding any key (but volume) for a few seconds, or a short press on a voice or search key, starts the
-    // assistant. The screen of the car is not touch-sensitive, this works when the wake word is not heard.
+    // assistant. The screen of the car is not touch-sensitive and the microphone is only open after this.
     private static final long TALK_HOLD_MS = 3000;
     private final Runnable talkHeld = () -> callPage(0, "{\"event\":\"talkKey\"}");
     private int talkKey = -1;
@@ -374,13 +368,12 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
-        bridge.holdWake(false);
     }
 
     @Override
     protected void onPause() {
         // other apps (phone calls, CarPlay) get the microphone back while DriveDeck is in the background
-        bridge.holdWake(true);
+        bridge.cancelListening();
         web.onPause();
         super.onPause();
     }
@@ -402,51 +395,17 @@ public class MainActivity extends Activity {
         private final Context context;
         private final AudioManager audio;
         private final CloudVoice cloud;
-        private final LocalWake wake;
-        // commands and answers go through OpenRouter, only the wake word is heard by Android itself
+        // speech in and out goes through OpenRouter only, the services of Android are not used
         private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
             this.context = context;
             cloud = new CloudVoice(context, secrets, usage);
-            wake = new LocalWake(context, cloud::micBusy, new LocalWake.Listener() {
-                @Override
-                public void heard(String text, String language) {
-                    try {
-                        callPage(0, new JSONObject().put("event", "heard").put("text", text).put("lang", language).toString());
-                    } catch (Exception e) {
-                        // nothing heard then
-                    }
-                }
-
-                @Override
-                public void status(String state, String detail) {
-                    try {
-                        callPage(0, new JSONObject().put("event", "wakeStatus").put("state", state).put("detail", detail).toString());
-                    } catch (Exception e) {
-                        // nothing to report then
-                    }
-                }
-            });
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         }
 
-        JSONObject wakeDiagnostics() {
-            return wake.diagnostics();
-        }
-
-        /** Extra wake words set on the phone page, separated by commas. */
-        @JavascriptInterface
-        public String getWakeWords() {
-            return secrets.load().optString("wakeWords", "");
-        }
-
-        void holdWake(boolean hold) {
-            wake.hold(hold);
-        }
-
         void shutdown() {
-            wake.stop();
+            cloud.cancelListening();
             cloud.stopSpeaking(true);
         }
 
@@ -628,26 +587,6 @@ public class MainActivity extends Activity {
         }
 
         /**
-         * Listens for the wake word with the recognizer of Android (see LocalWake). Every phrase arrives as event
-         * {event:"heard", text, lang} with the guesses separated by " | ", the page decides whether it was the wake word.
-         * The state of the listener arrives as {event:"wakeStatus", state: ready|off|error, detail}.
-         */
-        @JavascriptInterface
-        public void setWake(boolean on, String languageTag) {
-            runOnUiThread(() -> {
-                if (!on) {
-                    wake.stop();
-                    return;
-                }
-                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, WAKE_REQUEST);
-                    return;
-                }
-                wake.start(languageTag);
-            });
-        }
-
-        /**
          * Speech to text through OpenRouter. The result arrives as window.core.native(id, {text} or {error}).
          */
         @JavascriptInterface
@@ -663,9 +602,7 @@ public class MainActivity extends Activity {
                     callPage(id, "{\"error\":\"" + CloudVoice.text(languageTag, "nokey") + "\"}");
                     return;
                 }
-                // the recognizer of the wake word lets the microphone go first
-                wake.pauseFor(1500);
-                web.postDelayed(() -> cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json)), 300);
+                cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
             });
         }
 

@@ -76,13 +76,6 @@
 <div class="head"><span></span><button id="refreshVoices" type="button">↻ Aktualisieren</button></div>
 <div id="ttsModels"><small>Lade Modelle ...</small></div>
 
-<h2 style="font-size:17px;margin:26px 0 0">Aktivierung</h2>
-<p class="hint">Das Auto hört auf „DriveDeck“. Klappt das mit deiner Aussprache nicht, trag hier eigene Wörter ein (mit Komma getrennt, mindestens 4 Buchstaben), am besten so, wie Android sie unten schreibt. Eine Taste 3 Sekunden halten startet den Assistenten auch.</p>
-<label for="wakeWords">Weitere Aktivierungswörter</label>
-<input id="wakeWords" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Asistan, Hey Auto">
-<dl class="stats" id="wakeStats"><dt>…</dt><dd></dd></dl>
-<div class="head"><span></span><button id="refreshWake" type="button">↻ Aktualisieren</button></div>
-
 <h2 style="font-size:17px;margin:26px 0 0">Anmeldungen für den Browser</h2>
 <p class="hint">z. B. Google (google.com). Das Passwort bekommt die KI nie zu sehen, es wird nur in die Seite eingetragen. Google blockiert Anmeldungen in eingebetteten Browsern gelegentlich.</p>
 <div id="logins"></div>
@@ -172,18 +165,9 @@
     "Es ist schon ein Schlüssel gespeichert.": ["Zaten bir anahtar kayıtlı.", "A key is already saved."],
     "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
     "Kontext": ["bağlam", "context"],
-    "Aktivierung": ["Uyandırma", "Wake word"],
-    "Das Auto hört auf „DriveDeck“. Klappt das mit deiner Aussprache nicht, trag hier eigene Wörter ein (mit Komma getrennt, mindestens 4 Buchstaben), am besten so, wie Android sie unten schreibt. Eine Taste 3 Sekunden halten startet den Assistenten auch.": ["Araba „DriveDeck“ kelimesini dinler. Telaffuzunla çalışmazsa buraya kendi kelimelerini yaz (virgülle ayır, en az 4 harf), en iyisi Android'in aşağıda yazdığı şekilde. Bir tuşu 3 saniye basılı tutmak da asistanı başlatır.", "The car listens for \"DriveDeck\". If that does not work with your pronunciation, enter your own words here (separated by commas, at least 4 letters), ideally the way Android writes them below. Holding a key for 3 seconds also starts the assistant."],
-    "Weitere Aktivierungswörter": ["Ek uyandırma kelimeleri", "More wake words"],
-    "Status": ["Durum", "Status"],
-    "hört zu": ["dinliyor", "listening"],
-    "aus": ["kapalı", "off"],
-    "Letzter Fehler": ["Son hata", "Last error"],
-    "Gehört": ["Duyulan", "Heard"],
-    "noch nichts": ["henüz bir şey yok", "nothing yet"],
     "Kopplung aufheben und Daten im Auto löschen": ["Eşleşmeyi kaldır ve arabadaki verileri sil", "Unpair and delete the data in the car"],
     "Schlüssel, Anmeldungen und Verlauf im Auto werden gelöscht. Danach braucht es einen neuen QR-Code. Sicher?": ["Arabadaki anahtar, girişler ve geçmiş silinecek. Sonra yeni bir QR kod gerekir. Emin misin?", "Key, logins and history in the car will be deleted. A new QR code is needed afterwards. Sure?"],
-    "Gelöscht. Zum neuen Koppeln im Auto sagen: DriveDeck, zeig den QR-Code.": ["Silindi. Yeniden eşleştirmek için arabada söyle: DriveDeck, QR kodu göster.", "Deleted. To pair again, say in the car: DriveDeck, show the QR code."],
+    "Gelöscht. Zum neuen Koppeln im Auto eine Taste halten und sagen: Zeig den QR-Code.": ["Silindi. Yeniden eşleştirmek için arabada bir tuşu basılı tut ve söyle: QR kodu göster.", "Deleted. To pair again, hold a key in the car and say: show the QR code."],
     "↻ Aktualisieren": ["↻ Yenile", "↻ Refresh"],
     "Stimme (Modell)": ["Ses (model)", "Voice (model)"],
     "Stimme (Sprecher)": ["Ses (konuşmacı)", "Voice (speaker)"],
@@ -250,34 +234,7 @@
     $('addr').innerHTML = `${T('Lesezeichen für später:')} <b>http://${location.host}</b>`;
   }
 
-  // what the wake word listener of Android does and what it heard lately, to find out why it does not wake
-  function renderWake(wake) {
-    const rows = [];
-    if (!wake) {
-      rows.push([T('Status'), '–']);
-    } else {
-      rows.push([T('Status'), wake.on ? `${T('hört zu')} (${wake.language}, ${wake.mode})` : T('aus')]);
-      if (wake.error) {
-        rows.push([T('Letzter Fehler'), wake.error]);
-      }
-      (wake.heard || []).forEach((h) => rows.push([new Date(h.at).toLocaleTimeString(LANG), h.text]));
-      if (!(wake.heard || []).length) {
-        rows.push([T('Gehört'), T('noch nichts')]);
-      }
-    }
-    $('wakeStats').innerHTML = '';
-    rows.forEach(([k, v]) => {
-      const dt = document.createElement('dt');
-      dt.textContent = k;
-      const dd = document.createElement('dd');
-      dd.textContent = v;
-      $('wakeStats').append(dt, dd);
-    });
-  }
-  $('refreshWake').onclick = () => loadState();
-
   function renderStats(state) {
-    renderWake(state.wake);
     const rows = [];
     const usd = (v) => `$${Number(v || 0).toFixed(v >= 10 ? 2 : 4)}`;
     const num = (v) => Number(v || 0).toLocaleString(LANG);
@@ -326,7 +283,7 @@
         // nothing stored then
       }
       $('msg').className = 'ok';
-      $('msg').textContent = T('Gelöscht. Zum neuen Koppeln im Auto sagen: DriveDeck, zeig den QR-Code.');
+      $('msg').textContent = T('Gelöscht. Zum neuen Koppeln im Auto eine Taste halten und sagen: Zeig den QR-Code.');
     } catch (e) {
       $('msg').className = 'err';
       $('msg').textContent = T('Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.');
@@ -522,7 +479,6 @@
       }
       loaded = true;
       $('model').value = state.model;
-      $('wakeWords').value = state.wakeWords || '';
       $('ttsModel').value = state.ttsModel || '';
       $('ttsVoice').value = state.ttsVoice || '';
       renderVoices();
@@ -546,7 +502,7 @@
     $('msg').className = '';
     $('msg').textContent = T('Sende ...');
     try {
-      await post('save', { openrouterKey: $('key').value, model: $('model').value, ttsModel: $('ttsModel').value, ttsVoice: $('ttsVoice').value, wakeWords: $('wakeWords').value, logins });
+      await post('save', { openrouterKey: $('key').value, model: $('model').value, ttsModel: $('ttsModel').value, ttsVoice: $('ttsVoice').value, logins });
       $('msg').className = 'ok';
       $('msg').textContent = T('Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.');
       loadState();

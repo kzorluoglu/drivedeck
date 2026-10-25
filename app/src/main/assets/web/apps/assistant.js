@@ -12,82 +12,6 @@
   const HISTORY_MAX = 200;
 
 
-  // "DriveDeck" the way a recognizer in any language may write it: Drive Deck, DriveDeck, Draiv dek,
-  // Drayv Dek, Dreiwdeck, Dry Deck, Dr. Deck, Treib Deck ... Words are compared by their consonants
-  // (d r v d k), one of them may be missing or different. It has to open the phrase, so a sentence that
-  // only contains something similar ("Ich habe drei Decken") does not wake the assistant.
-  const WAKE_SKELETON = 'drvdk';
-  const FILLER = /^(hey|hei|hi|hallo|hello|ok|okay|okey|merhaba|selam|hay|ey|the|a)$/;
-
-  // consonants of one word, sounding alike ones merged: t/d, w/f/b/v, c/q/k and a final g
-  function skeleton(word) {
-    return word.toLowerCase()
-      .replace(/ı/g, 'i')
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z]/g, '')
-      .replace(/ph/g, 'v')
-      .replace(/g$/, 'k')
-      .replace(/ck|c|q/g, 'k')
-      .replace(/x/g, 'ks')
-      .replace(/t/g, 'd')
-      .replace(/[wfb]/g, 'v')
-      .replace(/[aeiouyh]/g, '')
-      .replace(/(.)\1+/g, '$1');
-  }
-
-  function distance(a, b) {
-    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
-    for (let i = 1; i <= a.length; i++) {
-      let prev = row[0];
-      row[0] = i;
-      for (let j = 1; j <= b.length; j++) {
-        const keep = row[j];
-        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-        prev = keep;
-      }
-    }
-    return row[b.length];
-  }
-
-  // letters only, without accents, so "Asistanım" and "asistanim" compare alike
-  function letters(text) {
-    return text.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
-  }
-
-  /** Extra wake words from the phone page, read again for every phrase, at least 4 letters each. */
-  function extraWakeWords() {
-    const words = String((device && device.getWakeWords && device.getWakeWords()) || '');
-    return words.split(',').map(letters).filter((w) => w.length >= 4);
-  }
-
-  /** The command after the wake word ('' when there is none), or null when the phrase did not start with it. */
-  function wakeCommand(phrase) {
-    const all = phrase.trim().split(/[\s,.!?;:]+/).filter(Boolean);
-    // own wake words: spelled almost the same, one letter off per five
-    for (const target of extraWakeWords()) {
-      for (let n = Math.min(4, all.length); n >= 1; n--) {
-        if (distance(letters(all.slice(0, n).join('')), target) <= Math.floor(target.length / 5)) {
-          return all.slice(n).join(' ');
-        }
-      }
-    }
-    let words = all;
-    if (words.length > 1 && FILLER.test(words[0].toLowerCase())) {
-      words = words.slice(1);
-    }
-    // "DriveDeck": the first word carries the "dr", the phrase ends in the "d k" of "deck"
-    if (!words.length || !skeleton(words[0]).startsWith('dr')) {
-      return null;
-    }
-    for (let n = Math.min(3, words.length); n >= 1; n--) {
-      const key = words.slice(0, n).map(skeleton).join('').replace(/(.)\1+/g, '$1');
-      if (key.endsWith('dk') && distance(key, WAKE_SKELETON) <= 1) {
-        return words.slice(n).join(' ');
-      }
-    }
-    return null;
-  }
-
   // Clicks on buttons like these need a yes from the driver first.
   const SENSITIVE = /kaufen|bestell|bezahl|zahlungspflichtig|abonnier|senden|absenden|veröffentlich|löschen|entfernen|bestätig|buy|purchase|checkout|\bpay\b|order|subscribe|send|post|publish|delete|remove|confirm|submit|satın|öde|sipariş|abone|gönder|yayınla|\bsil\b|onayla/i;
 
@@ -120,12 +44,11 @@
       steps_limit: 'Zu viele Schritte, ich höre auf.',
       cancelled: 'Abgebrochen.',
       status: {
-        ready: 'Sag „DriveDeck“',
-        off: 'Sprachaktivierung aus',
+        ready: 'Taste 3 s halten',
         listen: 'Ich höre zu …',
         think: 'Ich arbeite …',
         speak: 'Ich spreche',
-        err: 'Nicht verstanden, sag noch mal „DriveDeck“',
+        err: 'Nicht verstanden, Taste noch mal halten',
       },
       tools: { search: 'Suche', open_url: 'Öffnet', click: 'Klickt', type_text: 'Tippt', login: 'Trägt Anmeldung ein', find_place: 'Suche Ziel', navigate_to: 'Navigation zu', start_navigation: 'Navigation zu', stop_navigation: 'Navigation beendet', find_nearby: 'Suche in der Nähe', weather: 'Wetter', set_timer: 'Erinnerung', play_music: 'Spielt', save_place: 'Ort gespeichert', set_layout: 'Ansicht', open_app: 'Öffnet', close_app: 'Schließt' },
     },
@@ -154,12 +77,11 @@
       steps_limit: 'Çok fazla adım, duruyorum.',
       cancelled: 'İptal edildi.',
       status: {
-        ready: '„DriveDeck“ de',
-        off: 'Sesle uyandırma kapalı',
+        ready: 'Tuşu 3 sn basılı tut',
         listen: 'Dinliyorum …',
         think: 'Çalışıyorum …',
         speak: 'Konuşuyorum',
-        err: 'Anlamadım, tekrar „DriveDeck“ de',
+        err: 'Anlamadım, tuşu tekrar basılı tut',
       },
       tools: { search: 'Arama', open_url: 'Açıyor', click: 'Tıklıyor', type_text: 'Yazıyor', login: 'Girişi dolduruyor', find_place: 'Hedef arıyor', navigate_to: 'Navigasyon', start_navigation: 'Navigasyon', stop_navigation: 'Navigasyon bitti', find_nearby: 'Yakında arıyor', weather: 'Hava durumu', set_timer: 'Hatırlatıcı', play_music: 'Çalıyor', save_place: 'Yer kaydedildi', set_layout: 'Görünüm', open_app: 'Açıyor', close_app: 'Kapatıyor' },
     },
@@ -188,12 +110,11 @@
       steps_limit: 'Too many steps, I am stopping.',
       cancelled: 'Cancelled.',
       status: {
-        ready: 'Say "DriveDeck"',
-        off: 'Wake word off',
+        ready: 'Hold a key for 3 s',
         listen: 'Listening …',
         think: 'Working …',
         speak: 'Speaking',
-        err: 'Did not understand, say "DriveDeck" again',
+        err: 'Did not understand, hold the key again',
       },
       tools: { search: 'Searching', open_url: 'Opening', click: 'Clicking', type_text: 'Typing', login: 'Filling in login', find_place: 'Looking up destination', navigate_to: 'Navigating to', start_navigation: 'Navigating to', stop_navigation: 'Navigation ended', find_nearby: 'Searching nearby', weather: 'Weather', set_timer: 'Reminder', play_music: 'Playing', save_place: 'Place saved', set_layout: 'View', open_app: 'Opening', close_app: 'Closing' },
     },
@@ -362,8 +283,8 @@
   const L = () => LANGS[lang];
 
   // The assistant lives in the dock: a glowing dot and one line of text next to it. The main area
-  // stays free for the map, the browser and the apps. The screen is not touch-sensitive, so the
-  // driver talks to it ("DriveDeck ...") and the assistant operates everything else.
+  // stays free for the map, the browser and the apps. The screen is not touch-sensitive: holding a key
+  // starts the assistant, the driver talks to it and it operates everything else.
 
   const dock = document.getElementById('dock');
   const host = document.createElement('div');
@@ -392,8 +313,7 @@
   let drivingNow = false;
   let captionTimer = null;
   let speakTimer = null;
-  // what the idle dot says: ready for the wake word, switched off, or why it does not work
-  let idleText = L().status.ready;
+  const idleText = L().status.ready;
 
   if (device && device.setSpeechLanguage) {
     device.setSpeechLanguage(L().tag);
@@ -926,7 +846,7 @@
   let panelView = 'history';
 
   window.core.assistant = {
-    /** view 'pair' or 'history' opens that panel, 'wake' runs the command after the wake word (empty: listen for it). */
+    /** view 'pair' or 'history' opens that panel, 'wake' runs a command (empty: listen for it). */
     open(view, text) {
       if (view === 'pair' || view === 'history') {
         panelView = view;
@@ -952,25 +872,6 @@
     if (e.event === 'voiceError' && Date.now() - lastVoiceError > 30000) {
       lastVoiceError = Date.now();
       toast(window.i18n.t('Stimme: {0}', String(e.message || '').slice(0, 140)));
-    } else if (e.event === 'wakeStatus') {
-      idleText = e.state === 'off' ? L().status.off
-          : e.state === 'error' ? window.i18n.t('Aktivierung: {0}', String(e.detail || '').slice(0, 140))
-            : L().status.ready;
-      if (host.dataset.state === 'idle') {
-        statusEl.textContent = idleText;
-      }
-    } else if (e.event === 'heard') {
-      // every phrase the recognizer of Android heard, with its guesses separated by " | "
-      // the wake word is listened for in English, a command in another language would arrive garbled,
-      // so then the command is asked for again and understood by OpenRouter
-      const sameLanguage = !e.lang || String(e.lang).startsWith(lang);
-      for (const guess of String(e.text || '').split(' | ')) {
-        const command = wakeCommand(guess);
-        if (command !== null) {
-          window.core.assistant.open('wake', sameLanguage ? command : '');
-          break;
-        }
-      }
     } else if (e.event === 'talkKey') {
       // a held key or the voice key of the car: listen, end the recording early, or stop a running answer
       if (busy) {
