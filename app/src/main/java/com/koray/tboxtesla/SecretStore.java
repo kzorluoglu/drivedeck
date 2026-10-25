@@ -58,6 +58,38 @@ class SecretStore {
     }
 
     /**
+     * Token and AES key of the phone page as hex, created on first use. They stay until the data is
+     * deleted, so a paired phone keeps working after restarts.
+     */
+    synchronized String[] pairing() {
+        JSONObject data = load();
+        String token = data.optString("pairToken", "");
+        String key = data.optString("pairKey", "");
+        if (token.isEmpty() || key.isEmpty()) {
+            java.security.SecureRandom random = new java.security.SecureRandom();
+            token = hex(random, 12);
+            key = hex(random, 32);
+            try {
+                data.put("pairToken", token).put("pairKey", key);
+                save(data);
+            } catch (Exception e) {
+                // works for this session, a new QR code is needed after a restart
+            }
+        }
+        return new String[] {token, key};
+    }
+
+    private static String hex(java.security.SecureRandom random, int length) {
+        byte[] bytes = new byte[length];
+        random.nextBytes(bytes);
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) {
+            out.append(String.format("%02x", b));
+        }
+        return out.toString();
+    }
+
+    /**
      * What the UI may know: whether a key exists, the model and the logged sites with user names.
      */
     JSONObject publicState() {

@@ -66,6 +66,7 @@ class CloudVoice {
 
     private final Context context;
     private final SecretStore secrets;
+    private final Usage usage;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final File cache;
 
@@ -82,9 +83,10 @@ class CloudVoice {
     private volatile long quietUntil;
     private Thread wakeThread;
 
-    CloudVoice(Context context, SecretStore secrets) {
+    CloudVoice(Context context, SecretStore secrets, Usage usage) {
         this.context = context;
         this.secrets = secrets;
+        this.usage = usage;
         cache = new File(context.getCacheDir(), "tts");
         cache.mkdirs();
         prune();
@@ -236,6 +238,7 @@ class CloudVoice {
         if (status >= 400) {
             return "{\"error\":" + JSONObject.quote("OpenRouter " + status + ": " + shorten(response)) + "}";
         }
+        usage.addSpeechSeconds(pcm.length / 2.0 / RATE);
         String spoken = new JSONObject(response).optString("text", "").trim();
         return spoken.isEmpty()
                 ? "{\"error\":\"" + text(languageTag, "nothing") + "\"}"
@@ -488,6 +491,7 @@ class CloudVoice {
             part.delete();
             throw new IOException("empty audio");
         }
+        usage.addSpokenChars(text.length());
         prune();
         return file;
     }

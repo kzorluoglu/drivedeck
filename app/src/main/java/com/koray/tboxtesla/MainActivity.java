@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.widget.FrameLayout;
@@ -55,6 +56,8 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private SecretStore secrets;
     private PairingServer pairing;
+    private MdnsResponder mdns;
+    private Usage usage;
     private TileCache tiles;
     private final ObdClient obd = new ObdClient();
     private int listenId;
@@ -104,8 +107,9 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
 
         secrets = new SecretStore(this);
+        usage = new Usage(this);
         tiles = new TileCache(this);
-        pairing = new PairingServer(this, secrets, new PairingServer.Listener() {
+        pairing = new PairingServer(this, secrets, usage, new PairingServer.Listener() {
             @Override
             public void onSaved() {
                 callPage(0, "{\"event\":\"paired\"}");
@@ -116,6 +120,14 @@ public class MainActivity extends Activity {
                 callPage(0, "{\"event\":\"inbox\",\"message\":" + message + "}");
             }
         });
+        // the phone page is always reachable, by IP and as drivedeck.local
+        try {
+            pairing.start();
+        } catch (Exception e) {
+            Log.w("Pairing", "server not started: " + e.getMessage());
+        }
+        mdns = new MdnsResponder(this);
+        mdns.start();
         bridge = new DeviceBridge(this);
         updater = new Updater(this);
         IntentFilter resultFilter = new IntentFilter(Updater.RESULT_ACTION);
@@ -341,6 +353,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         unregisterReceiver(installResult);
         pairing.stop();
+        mdns.stop();
         obd.disconnect();
         bridge.shutdown();
         super.onDestroy();
@@ -359,7 +372,7 @@ public class MainActivity extends Activity {
 
         DeviceBridge(Context context) {
             this.context = context;
-            cloud = new CloudVoice(context, secrets);
+            cloud = new CloudVoice(context, secrets, usage);
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             tts = new TextToSpeech(context, this);
         }
@@ -435,6 +448,7 @@ public class MainActivity extends Activity {
             try {
                 JSONObject request = new JSONObject(requestJson);
                 request.put("model", secrets.publicState().optString("model", SecretStore.DEFAULT_MODEL));
+                request.put("usage", new JSONObject().put("include", true));
                 HttpURLConnection http = (HttpURLConnection) new URL("https://openrouter.ai/api/v1/chat/completions").openConnection();
                 http.setConnectTimeout(15000);
                 http.setReadTimeout(90000);
@@ -449,6 +463,9 @@ public class MainActivity extends Activity {
                 int status = http.getResponseCode();
                 InputStream in = status < 400 ? http.getInputStream() : http.getErrorStream();
                 String body = in == null ? "" : readAll(in);
+                if (status < 400) {
+                    usage.addChat(body);
+                }
                 return new JSONObject().put("status", status).put("body", body).toString();
             } catch (Exception e) {
                 return "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}";

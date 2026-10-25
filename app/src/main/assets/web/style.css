@@ -189,7 +189,8 @@ svg {
 
 .sheet {
   position: absolute;
-  z-index: 600;
+  /* above an open app window, so Apps and settings are reachable while the assistant is open */
+  z-index: 750;
   left: 2vw;
   bottom: 2vh;
   width: 60%;

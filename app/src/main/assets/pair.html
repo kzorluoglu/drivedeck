@@ -24,12 +24,18 @@
   .m b { display: block; font-size: 15px; font-weight: 600; }
   .m span { color: #8b8c94; font-size: 13px; }
   .m .free { color: #4ade80; }
+  .stats { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 10px; padding: 12px; border: 1px solid #2b2c31; border-radius: 12px; background: #18191c; font-size: 14px; }
+  .stats dt { color: #8b8c94; }
+  .stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .addr { margin: 0 0 18px; padding: 10px 12px; border-radius: 10px; background: #1d2540; font-size: 14px; }
+  .addr b { user-select: all; }
 </style>
 </head>
 <body>
 <h1>DriveDeck koppeln</h1>
-<p class="hint">Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Der Link läuft nach 30 Minuten Ruhe ab.</p>
+<p class="hint">Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Das Handy bleibt gekoppelt, bis du im Auto die Daten löschst.</p>
 <div id="fatal" class="err"></div>
+<p class="addr" id="addr" hidden></p>
 
 <h2 style="font-size:17px;margin:6px 0 0">Ans Auto senden</h2>
 <label for="dest">Ziel (Adresse oder Ort)</label>
@@ -39,6 +45,10 @@
 <textarea id="note" rows="3" placeholder="Wird im Auto als Notiz gespeichert"></textarea>
 <button id="sendNote" class="primary" type="button" style="margin-top:10px">Notiz senden</button>
 <div id="sendMsg"></div>
+
+<h2 style="font-size:17px;margin:30px 0 0">Assistent</h2>
+<dl class="stats" id="stats"><dt>…</dt><dd></dd></dl>
+<button id="resetUsage" type="button" style="margin-top:10px">Zähler zurücksetzen</button>
 
 <h2 style="font-size:17px;margin:30px 0 0">Assistent einrichten</h2>
 
@@ -59,14 +69,54 @@
 <button id="save" class="primary" type="button">Einstellungen speichern</button>
 <div id="msg"></div>
 
-<script>document.write('<script src="' + location.pathname.replace(/\/$/, '') + '/sjcl.js"><\/script>');</script>
+<script src="/sjcl.js"></script>
 <script>
-  const base = location.pathname.replace(/\/$/, '');
+  // Token and key come from the QR code (/p/<token>#k=<key>) or, when moving to drivedeck.local, from
+  // the fragment (#t=..&k=..). The phone keeps them, so later the bare address is enough.
+  const STORE = 'drivedeck';
+  const PORT = 8765;
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(STORE)) || {};
+  } catch (e) {
+    saved = {};
+  }
+  const token = (location.pathname.match(/^\/p\/([0-9a-f]{24})/) || [])[1] || (location.hash.match(/t=([0-9a-f]{24})/) || [])[1] || saved.t;
+  const keyHex = (location.hash.match(/k=([0-9a-f]{64})/) || [])[1] || saved.k;
   // The language comes from the QR code (l=de|tr|en), otherwise from the phone.
-  const LANG = (location.hash.match(/l=(de|tr|en)/) || [])[1] || (['tr', 'en'].includes((navigator.language || '').slice(0, 2)) ? navigator.language.slice(0, 2) : 'de');
+  const LANG = (location.hash.match(/l=(de|tr|en)/) || [])[1] || saved.l || (['tr', 'en'].includes((navigator.language || '').slice(0, 2)) ? navigator.language.slice(0, 2) : 'de');
+  if (token && keyHex) {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ t: token, k: keyHex, l: LANG }));
+    } catch (e) {
+      // private mode: works until the tab closes
+    }
+    // the address bar shows only the address, that is what goes into the bookmark
+    history.replaceState(null, '', '/');
+  }
+  const base = `/p/${token}`;
   const TABLE = {
     "DriveDeck koppeln": ["DriveDeck eşleştir", "Pair DriveDeck"],
-    "Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Der Link läuft nach 30 Minuten Ruhe ab.": ["Veriler sadece doğrudan arabana gider (aynı Wi-Fi / hotspot), yolda şifrelidir ve arabada şifreli saklanır. Bağlantı 30 dakika kullanılmazsa süresi dolar.", "The data goes straight to your car only (same Wi-Fi / hotspot), is encrypted on the way and stored encrypted in the car. The link expires after 30 minutes of inactivity."],
+    "Die Daten gehen nur direkt an dein Auto (selbes WLAN / Hotspot), sind auf dem Weg verschlüsselt und werden im Auto verschlüsselt gespeichert. Das Handy bleibt gekoppelt, bis du im Auto die Daten löschst.": ["Veriler sadece doğrudan arabana gider (aynı Wi-Fi / hotspot), yolda şifrelidir ve arabada şifreli saklanır. Arabada verileri silene kadar telefon eşleşmiş kalır.", "The data goes straight to your car only (same Wi-Fi / hotspot), is encrypted on the way and stored encrypted in the car. The phone stays paired until you delete the data in the car."],
+    "Assistent": ["Asistan", "Assistant"],
+    "Zähler zurücksetzen": ["Sayaçları sıfırla", "Reset counters"],
+    "Lesezeichen für später:": ["Sonrası için yer imi:", "Bookmark for later:"],
+    "Schlüssel": ["Anahtar", "Key"],
+    "keiner": ["yok", "none"],
+    "OpenRouter verbraucht": ["OpenRouter harcanan", "OpenRouter spent"],
+    "heute / Woche / Monat": ["bugün / hafta / ay", "today / week / month"],
+    "Limit übrig": ["Kalan limit", "Limit left"],
+    "Anfragen": ["İstekler", "Requests"],
+    "Tokens (Eingabe / Ausgabe)": ["Token (giriş / çıkış)", "Tokens (input / output)"],
+    "Kosten Chat": ["Sohbet maliyeti", "Chat cost"],
+    "Spracheingabe": ["Ses girişi", "Speech input"],
+    "Sprachausgabe": ["Ses çıkışı", "Speech output"],
+    "Zeichen": ["karakter", "characters"],
+    "seit": ["başlangıç", "since"],
+    "Stimme": ["Ses", "Voice"],
+    "Erkennung": ["Tanıma", "Recognition"],
+    "Noch nicht gekoppelt. Im Auto unter Apps → Einstellungen → Koppeln den QR-Code scannen.": ["Henüz eşleşmedi. Arabada Uygulamalar → Ayarlar → Eşleştir altındaki QR kodunu tara.", "Not paired yet. Scan the QR code in the car under Apps → Settings → Pair."],
+    "Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.": ["Arabaya ulaşılamıyor. Aynı Wi-Fi'da mısın? Değilse arabada yeniden eşleştir.", "The car is not reachable. Same Wi-Fi? Otherwise pair again in the car."],
     "Ans Auto senden": ["Arabaya gönder", "Send to the car"],
     "Ziel (Adresse oder Ort)": ["Hedef (adres veya yer)", "Destination (address or place)"],
     "Bahnhofstraße 1, Lörrach": ["Atatürk Caddesi 1, İstanbul", "1 Main Street, London"],
@@ -87,18 +137,15 @@
     "Seite": ["Site", "Site"],
     "Benutzer / E-Mail": ["Kullanıcı / e-posta", "User / email"],
     "Passwort": ["Şifre", "Password"],
-    "Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.": ["Anahtar eksik. Lütfen arabadaki QR kodunu tara, bağlantı elle yazılamaz.", "The key is missing. Please scan the QR code in the car, the link cannot be typed by hand."],
     "Sende ...": ["Gönderiliyor ...", "Sending ..."],
     "Gesendet, das Auto startet die Navigation.": ["Gönderildi, araba navigasyonu başlatıyor.", "Sent, the car starts the navigation."],
     "Gesendet, als Notiz gespeichert.": ["Gönderildi, not olarak kaydedildi.", "Sent, saved as a note."],
-    "Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.": ["Gönderilemedi. Bağlantının süresi dolmuş veya araca ulaşılamıyor.", "Sending failed. The link expired or the car is not reachable."],
     "unverändert": ["değiştirilmedi", "unchanged"],
     "gratis": ["ücretsiz", "free"],
     "Top 10 (bezahlt)": ["İlk 10 (ücretli)", "Top 10 (paid)"],
     "Top 10 gratis": ["İlk 10 ücretsiz", "Top 10 free"],
     "Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.": ["Model listesine ulaşılamıyor. Model kimliğini yukarıya kendin yazabilirsin.", "The model list is not reachable. You can enter the model ID above yourself."],
     "Es ist schon ein Schlüssel gespeichert.": ["Zaten bir anahtar kayıtlı.", "A key is already saved."],
-    "Link abgelaufen. Im Auto neu koppeln.": ["Bağlantının süresi doldu. Arabada yeniden eşleştir.", "The link expired. Pair again in the car."],
     "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
     "Kontext": ["bağlam", "context"],
   };
@@ -115,9 +162,8 @@
 
   const $ = (id) => document.getElementById(id);
 
-  // The key comes from the QR code (URL fragment, never sent over the network). Everything that
-  // goes to or comes from the car is AES-GCM encrypted with it.
-  const keyHex = (location.hash.match(/k=([0-9a-f]{64})/) || [])[1];
+  // The key never goes over the network (URL fragment, storage of the phone). Everything that goes to
+  // or comes from the car is AES-GCM encrypted with it.
   const aes = keyHex && new sjcl.cipher.aes(sjcl.codec.hex.toBits(keyHex));
 
   function seal(object) {
@@ -138,9 +184,75 @@
     return open(await res.json());
   }
 
-  if (!aes) {
-    $('fatal').textContent = T('Der Schlüssel fehlt. Bitte den QR-Code im Auto scannen, der Link lässt sich nicht von Hand eintippen.');
+  if (!aes || !token) {
+    $('fatal').textContent = T('Noch nicht gekoppelt. Im Auto unter Apps → Einstellungen → Koppeln den QR-Code scannen.');
   }
+
+  // Opened by IP from the QR code: when this phone can resolve drivedeck.local, move there, so the
+  // bookmark keeps working when the box gets another IP. The fragment carries token and key along.
+  if (aes && token && location.hostname !== 'drivedeck.local') {
+    const abort = new AbortController();
+    setTimeout(() => abort.abort(), 2500);
+    fetch(`http://drivedeck.local:${PORT}/ping`, { signal: abort.signal })
+      .then((r) => r.text())
+      .then((text) => {
+        if (text === 'drivedeck') {
+          location.replace(`http://drivedeck.local:${PORT}/#t=${token}&k=${keyHex}&l=${LANG}`);
+        }
+      })
+      .catch(() => {});
+  }
+  if (aes && token) {
+    $('addr').hidden = false;
+    $('addr').innerHTML = `${T('Lesezeichen für später:')} <b>http://${location.host}</b>`;
+  }
+
+  function renderStats(state) {
+    const rows = [];
+    const usd = (v) => `$${Number(v || 0).toFixed(v >= 10 ? 2 : 4)}`;
+    const num = (v) => Number(v || 0).toLocaleString(LANG);
+    rows.push([T('Modell'), state.model]);
+    rows.push([T('Schlüssel'), state.keyHint || T('keiner')]);
+    if (state.account) {
+      const a = state.account;
+      rows.push([T('OpenRouter verbraucht'), usd(a.usage)]);
+      if (a.usage_daily !== undefined) {
+        rows.push([T('heute / Woche / Monat'), `${usd(a.usage_daily)} / ${usd(a.usage_weekly)} / ${usd(a.usage_monthly)}`]);
+      }
+      if (a.limit !== null && a.limit !== undefined) {
+        rows.push([T('Limit übrig'), `${usd(a.limit_remaining)} / ${usd(a.limit)}`]);
+      }
+    }
+    const u = state.usage || {};
+    rows.push([T('Anfragen'), num(u.requests)]);
+    rows.push([T('Tokens (Eingabe / Ausgabe)'), `${num(u.promptTokens)} / ${num(u.completionTokens)}`]);
+    rows.push([T('Kosten Chat'), usd(u.cost)]);
+    rows.push([T('Spracheingabe'), `${Math.round((u.sttSeconds || 0) / 60)} min`]);
+    rows.push([T('Sprachausgabe'), `${num(u.ttsChars)} ${T('Zeichen')}`]);
+    if (u.since) {
+      rows.push([T('seit'), new Date(u.since).toLocaleDateString(LANG)]);
+    }
+    rows.push([T('Erkennung'), state.stt]);
+    rows.push([T('Stimme'), state.tts]);
+    $('stats').innerHTML = '';
+    rows.forEach(([k, v]) => {
+      const dt = document.createElement('dt');
+      dt.textContent = k;
+      const dd = document.createElement('dd');
+      dd.textContent = v;
+      $('stats').append(dt, dd);
+    });
+  }
+
+  $('resetUsage').onclick = async () => {
+    try {
+      await post('reset-usage', {});
+      loadState();
+    } catch (e) {
+      $('msg').className = 'err';
+      $('msg').textContent = T('Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.');
+    }
+  };
 
   async function send(type, text, button) {
     const msg = $('sendMsg');
@@ -153,7 +265,7 @@
       msg.textContent = type === 'destination' ? T('Gesendet, das Auto startet die Navigation.') : T('Gesendet, als Notiz gespeichert.');
     } catch (e) {
       msg.className = 'err';
-      msg.textContent = T('Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.');
+      msg.textContent = T('Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.');
     }
   }
   $('sendDest').onclick = () => send('destination', $('dest').value);
@@ -230,15 +342,26 @@
     $('models').innerHTML = '<small>' + T('Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.') + '</small>';
   });
 
-  fetch(`${base}/state`).then((r) => r.json()).then(open).then((state) => {
-    $('model').value = state.model;
-    markSelected();
-    if (state.hasKey) {
-      $('key').placeholder = T('unverändert');
-      $('keyNote').textContent = T('Es ist schon ein Schlüssel gespeichert.');
-    }
-    state.logins.forEach(addLogin);
-  }).catch(() => { $('msg').className = 'err'; $('msg').textContent = T('Link abgelaufen. Im Auto neu koppeln.'); });
+  let loaded = false;
+  function loadState() {
+    return fetch(`${base}/state`).then((r) => r.json()).then(open).then((state) => {
+      renderStats(state);
+      if (loaded) {
+        return;
+      }
+      loaded = true;
+      $('model').value = state.model;
+      markSelected();
+      if (state.hasKey) {
+        $('key').placeholder = T('unverändert');
+        $('keyNote').textContent = T('Es ist schon ein Schlüssel gespeichert.');
+      }
+      state.logins.forEach(addLogin);
+    }).catch(() => { $('msg').className = 'err'; $('msg').textContent = T('Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.'); });
+  }
+  if (aes && token) {
+    loadState();
+  }
 
   $('save').onclick = async () => {
     const logins = [...document.querySelectorAll('.login')].map((el) => ({
@@ -252,9 +375,10 @@
       await post('save', { openrouterKey: $('key').value, model: $('model').value, logins });
       $('msg').className = 'ok';
       $('msg').textContent = T('Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.');
+      loadState();
     } catch (e) {
       $('msg').className = 'err';
-      $('msg').textContent = T('Senden fehlgeschlagen. Link abgelaufen oder Auto nicht erreichbar.');
+      $('msg').textContent = T('Auto nicht erreichbar. Selbes WLAN? Sonst im Auto neu koppeln.');
     }
   };
 </script>

@@ -9,12 +9,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -25,14 +27,16 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Tiny HTTP server for the phone: the QR code on the car screen points to it. The phone sets up the
- * assistant (OpenRouter key, logins) and can send destinations, notes and links to the car.
+ * Tiny HTTP server for the phone, running as long as the app runs. The QR code on the car screen
+ * points to it. The phone sets up the assistant (OpenRouter key, model, logins), sees its usage and
+ * can send destinations, notes and links to the car.
  *
  * The connection is plain HTTP, so the content is encrypted on top: the QR code carries a random
  * AES-256 key in the URL fragment, which a browser never sends to a server. The phone page encrypts
  * everything it sends and decrypts everything it gets (AES-GCM, sjcl.js), so someone listening in the
- * Wi-Fi sees only ciphertext. The link also has a random token and expires after a period of
- * inactivity.
+ * Wi-Fi sees only ciphertext. The link also has a random token. Both stay the same until the
+ * assistant data is deleted, the phone keeps them in its browser storage, so later it only needs
+ * http://drivedeck.local:8765 (see {@link MdnsResponder}).
  */
 class PairingServer {
     interface Listener {
@@ -42,46 +46,41 @@ class PairingServer {
     }
 
     static final int PORT = 8765;
-    private static final long IDLE_MS = 30 * 60 * 1000;
     private static final int MAX_BODY = 64 * 1024;
 
     private final Context context;
     private final SecretStore store;
+    private final Usage usage;
     private final Listener listener;
     private final SecureRandom random = new SecureRandom();
 
     private ServerSocket server;
-    private String token;
-    private byte[] key;
-    private long expires;
 
-    PairingServer(Context context, SecretStore store, Listener listener) {
+    PairingServer(Context context, SecretStore store, Usage usage, Listener listener) {
         this.context = context;
         this.store = store;
+        this.usage = usage;
         this.listener = listener;
     }
 
     /**
-     * Starts (or restarts) the server and returns the URL for the QR code.
+     * Starts the server unless it runs already and returns the URL for the QR code.
      */
     synchronized String start() throws IOException {
-        stop();
-        token = hex(randomBytes(12));
-        key = randomBytes(32);
-        expires = System.currentTimeMillis() + IDLE_MS;
-        server = new ServerSocket();
-        server.setReuseAddress(true);
-        server.bind(new InetSocketAddress(PORT));
-        final ServerSocket socket = server;
-        Thread acceptor = new Thread(() -> accept(socket), "pairing-server");
-        acceptor.setDaemon(true);
-        acceptor.start();
-        return "http://" + advertisedAddress() + ":" + PORT + "/p/" + token + "#k=" + hex(key);
+        if (server == null || server.isClosed()) {
+            server = new ServerSocket();
+            server.setReuseAddress(true);
+            server.bind(new InetSocketAddress(PORT));
+            final ServerSocket socket = server;
+            Thread acceptor = new Thread(() -> accept(socket), "pairing-server");
+            acceptor.setDaemon(true);
+            acceptor.start();
+        }
+        String[] pairing = store.pairing();
+        return "http://" + advertisedAddress() + ":" + PORT + "/p/" + pairing[0] + "#k=" + pairing[1];
     }
 
     synchronized void stop() {
-        token = null;
-        key = null;
         if (server != null) {
             try {
                 server.close();
@@ -90,10 +89,6 @@ class PairingServer {
             }
             server = null;
         }
-    }
-
-    synchronized boolean running() {
-        return token != null && System.currentTimeMillis() <= expires;
     }
 
     private byte[] randomBytes(int length) {
@@ -131,7 +126,7 @@ class PairingServer {
      * The box's address in the Wi-Fi or LAN. Mobile data, USB and tunnel interfaces also have private
      * addresses on some boxes, but the phone can only reach the wlan/eth one.
      */
-    private static String localAddress() {
+    static String localAddress() {
         String fallback = null;
         try {
             for (NetworkInterface nif : Collections.list(NetworkInterface.getNetworkInterfaces())) {
@@ -171,17 +166,14 @@ class PairingServer {
     }
 
     /**
-     * Checks the token, and counts the request as activity.
+     * Returns the AES key when the token matches.
      */
-    private synchronized byte[] keyIfValid(String candidate) {
-        if (token == null || System.currentTimeMillis() > expires) {
+    private byte[] keyIfValid(String candidate) {
+        String[] pairing = store.pairing();
+        if (!MessageDigest.isEqual(pairing[0].getBytes(StandardCharsets.UTF_8), candidate.getBytes(StandardCharsets.UTF_8))) {
             return null;
         }
-        if (!MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8), candidate.getBytes(StandardCharsets.UTF_8))) {
-            return null;
-        }
-        expires = System.currentTimeMillis() + IDLE_MS;
-        return key;
+        return unhex(pairing[1]);
     }
 
     private void handle(Socket client) {
@@ -216,20 +208,36 @@ class PairingServer {
     }
 
     private void route(OutputStream out, String method, String path, String body) throws Exception {
-        // /p/<token>[/state|/save|/send|/sjcl.js]
-        String[] parts = path.split("\\?")[0].split("/");
+        // the page itself holds no secrets, so it is served without a token: /, /sjcl.js, /ping
+        String plain = path.split("\\?")[0];
+        if (method.equals("GET") && (plain.equals("/") || plain.equals("/index.html"))) {
+            respond(out, 200, "text/html", readAsset("pair.html"));
+            return;
+        }
+        if (method.equals("GET") && plain.equals("/sjcl.js")) {
+            respond(out, 200, "application/javascript", readAsset("sjcl.js"));
+            return;
+        }
+        if (method.equals("GET") && plain.equals("/ping")) {
+            // lets the page opened by IP check whether drivedeck.local works on this phone
+            respondCors(out, "drivedeck");
+            return;
+        }
+        // /p/<token>[/state|/save|/send|/reset-usage]
+        String[] parts = plain.split("/");
         byte[] key = parts.length < 3 || !parts[1].equals("p") ? null : keyIfValid(parts[2]);
         if (key == null) {
-            respond(out, 403, "text/plain", "Link abgelaufen");
+            respond(out, 403, "text/plain", "Link ungueltig");
             return;
         }
         String action = parts.length > 3 ? parts[3] : "";
         if (method.equals("GET") && action.isEmpty()) {
             respond(out, 200, "text/html", readAsset("pair.html"));
-        } else if (method.equals("GET") && action.equals("sjcl.js")) {
-            respond(out, 200, "application/javascript", readAsset("sjcl.js"));
         } else if (method.equals("GET") && action.equals("state")) {
-            respond(out, 200, "application/json", encrypt(key, store.publicState().toString()).toString());
+            respond(out, 200, "application/json", encrypt(key, state().toString()).toString());
+        } else if (method.equals("POST") && action.equals("reset-usage")) {
+            usage.reset();
+            respond(out, 200, "application/json", encrypt(key, "{\"ok\":true}").toString());
         } else if (method.equals("POST") && action.equals("save")) {
             save(decrypt(key, body));
             respond(out, 200, "application/json", encrypt(key, "{\"ok\":true}").toString());
@@ -240,6 +248,46 @@ class PairingServer {
             listener.onMessage(message);
         } else {
             respond(out, 404, "text/plain", "not found");
+        }
+    }
+
+    /**
+     * Everything the phone page shows: the assistant settings, a hint which key is stored, the usage
+     * counted in the car and the balance of the key at OpenRouter (includes speech).
+     */
+    private JSONObject state() throws Exception {
+        JSONObject state = store.publicState();
+        String apiKey = store.openRouterKey();
+        if (!apiKey.isEmpty()) {
+            state.put("keyHint", apiKey.substring(0, Math.min(9, apiKey.length())) + "…" + apiKey.substring(Math.max(0, apiKey.length() - 4)));
+            JSONObject account = account(apiKey);
+            if (account != null) {
+                state.put("account", account);
+            }
+        }
+        state.put("usage", usage.toJson());
+        state.put("stt", CloudVoice.STT_MODEL);
+        state.put("tts", CloudVoice.TTS_MODEL + " (" + CloudVoice.TTS_VOICE + ")");
+        state.put("host", MdnsResponder.HOST + ":" + PORT);
+        state.put("ip", localAddress() + ":" + PORT);
+        return state;
+    }
+
+    /** Usage and limit of the key as OpenRouter counts them, or null when OpenRouter cannot be reached. */
+    private static JSONObject account(String apiKey) {
+        try {
+            HttpURLConnection http = (HttpURLConnection) new URL("https://openrouter.ai/api/v1/key").openConnection();
+            http.setConnectTimeout(4000);
+            http.setReadTimeout(4000);
+            http.setRequestProperty("Authorization", "Bearer " + apiKey);
+            if (http.getResponseCode() >= 400) {
+                return null;
+            }
+            try (InputStream in = http.getInputStream()) {
+                return new JSONObject(new String(readBytes(in, Integer.MAX_VALUE), StandardCharsets.UTF_8)).optJSONObject("data");
+            }
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -331,6 +379,15 @@ class PairingServer {
             remaining -= read;
         }
         return out.toByteArray();
+    }
+
+    private static void respondCors(OutputStream out, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        String head = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\n"
+                + "Content-Length: " + bytes.length + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+        out.write(head.getBytes(StandardCharsets.UTF_8));
+        out.write(bytes);
+        out.flush();
     }
 
     private static void respond(OutputStream out, int status, String type, String body) throws IOException {

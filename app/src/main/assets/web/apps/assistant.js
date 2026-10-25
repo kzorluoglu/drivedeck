@@ -474,7 +474,7 @@
       let pollTimer = null;
 
       function openSheet(view) {
-        const wasOpen = !pairView.hidden || !historyView.hidden;
+        const wasOpen = !pairView.hidden || !historyView.hidden || dockSheetOpen;
         pairView.hidden = view !== pairView;
         historyView.hidden = view !== historyView;
         if (!wasOpen) {
@@ -484,10 +484,28 @@
 
       function closeSheet(view) {
         view.hidden = true;
-        if (!drivingNow) {
+        if (!drivingNow && !dockSheetOpen) {
           pane.resume();
         }
       }
+
+      // Apps or car sheet from the dock opened above the window
+      let dockSheetOpen = false;
+      function onDockSheet(e) {
+        const ownSheetOpen = !pairView.hidden || !historyView.hidden;
+        if (e.detail.open && !dockSheetOpen) {
+          dockSheetOpen = true;
+          if (!ownSheetOpen) {
+            pane.suspend();
+          }
+        } else if (!e.detail.open && dockSheetOpen) {
+          dockSheetOpen = false;
+          if (!ownSheetOpen && !drivingNow) {
+            pane.resume();
+          }
+        }
+      }
+      window.addEventListener('sheet', onDockSheet);
 
       function showPairing() {
         const result = JSON.parse(device.startPairing());
@@ -1102,6 +1120,7 @@
       return () => {
         active = null;
         cancelled = true;
+        window.removeEventListener('sheet', onDockSheet);
         clearInterval(pollTimer);
         clearInterval(drivingTimer);
         clearTimeout(captionTimer);

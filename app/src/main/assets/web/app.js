@@ -358,6 +358,8 @@
     document.querySelectorAll('.dock-btn').forEach((b) => {
       b.classList.toggle('active', !closing && b.dataset.sheet === name);
     });
+    // the assistant's browser is a native view above the page, it steps aside while a sheet is open
+    window.dispatchEvent(new CustomEvent('sheet', { detail: { open: !closing } }));
     if (closing) {
       sheet.hidden = true;
       openSheet = null;
