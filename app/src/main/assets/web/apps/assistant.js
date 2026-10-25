@@ -12,6 +12,62 @@
   const HISTORY_MAX = 200;
 
 
+  // "DriveDeck" the way a recognizer in any language may write it: Drive Deck, DriveDeck, Draiv dek,
+  // Drayv Dek, Dreiwdeck, Dry Deck, Dr. Deck, Treib Deck ... Words are compared by their consonants
+  // (d r v d k), one of them may be missing or different. It has to open the phrase, so a sentence that
+  // only contains something similar ("Ich habe drei Decken") does not wake the assistant.
+  const WAKE_SKELETON = 'drvdk';
+  const FILLER = /^(hey|hei|hi|hallo|hello|ok|okay|okey|merhaba|selam|hay|ey|the|a)$/;
+
+  // consonants of one word, sounding alike ones merged: t/d, w/f/b/v, c/q/k and a final g
+  function skeleton(word) {
+    return word.toLowerCase()
+      .replace(/ı/g, 'i')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z]/g, '')
+      .replace(/ph/g, 'v')
+      .replace(/g$/, 'k')
+      .replace(/ck|c|q/g, 'k')
+      .replace(/x/g, 'ks')
+      .replace(/t/g, 'd')
+      .replace(/[wfb]/g, 'v')
+      .replace(/[aeiouyh]/g, '')
+      .replace(/(.)\1+/g, '$1');
+  }
+
+  function distance(a, b) {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const keep = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = keep;
+      }
+    }
+    return row[b.length];
+  }
+
+  /** The command after the wake word ('' when there is none), or null when the phrase did not start with it. */
+  function wakeCommand(phrase) {
+    let words = phrase.trim().split(/[\s,.!?;:]+/).filter(Boolean);
+    if (words.length > 1 && FILLER.test(words[0].toLowerCase())) {
+      words = words.slice(1);
+    }
+    // the first word carries the "dr", the phrase ends in the "d k" of "deck"
+    if (!words.length || !skeleton(words[0]).startsWith('dr')) {
+      return null;
+    }
+    for (let n = Math.min(3, words.length); n >= 1; n--) {
+      const key = words.slice(0, n).map(skeleton).join('').replace(/(.)\1+/g, '$1');
+      if (key.endsWith('dk') && distance(key, WAKE_SKELETON) <= 1) {
+        return words.slice(n).join(' ');
+      }
+    }
+    return null;
+  }
+
   // Clicks on buttons like these need a yes from the driver first.
   const SENSITIVE = /kaufen|bestell|bezahl|zahlungspflichtig|abonnier|senden|absenden|veröffentlich|löschen|entfernen|bestätig|buy|purchase|checkout|\bpay\b|order|subscribe|send|post|publish|delete|remove|confirm|submit|satın|öde|sipariş|abone|gönder|yayınla|\bsil\b|onayla/i;
 
@@ -45,7 +101,6 @@
       cancelled: 'Abgebrochen.',
       status: {
         ready: 'Sag „DriveDeck“',
-        loading: (p) => `„DriveDeck“ wird vorbereitet ${p} %`,
         off: 'Sprachaktivierung aus',
         listen: 'Ich höre zu …',
         think: 'Ich arbeite …',
@@ -80,7 +135,6 @@
       cancelled: 'İptal edildi.',
       status: {
         ready: '„DriveDeck“ de',
-        loading: (p) => `„DriveDeck“ hazırlanıyor %${p}`,
         off: 'Sesle uyandırma kapalı',
         listen: 'Dinliyorum …',
         think: 'Çalışıyorum …',
@@ -115,7 +169,6 @@
       cancelled: 'Cancelled.',
       status: {
         ready: 'Say "DriveDeck"',
-        loading: (p) => `Preparing "DriveDeck" ${p} %`,
         off: 'Wake word off',
         listen: 'Listening …',
         think: 'Working …',
@@ -319,7 +372,7 @@
   let drivingNow = false;
   let captionTimer = null;
   let speakTimer = null;
-  // what the idle dot says: ready for the wake word, still loading it, or switched off
+  // what the idle dot says: ready for the wake word, switched off, or why it does not work
   let idleText = L().status.ready;
 
   if (device && device.setSpeechLanguage) {
@@ -880,15 +933,21 @@
       lastVoiceError = Date.now();
       toast(window.i18n.t('Stimme: {0}', String(e.message || '').slice(0, 140)));
     } else if (e.event === 'wakeStatus') {
-      idleText = e.state === 'loading' ? L().status.loading(e.detail)
-        : e.state === 'off' ? L().status.off
+      idleText = e.state === 'off' ? L().status.off
           : e.state === 'error' ? window.i18n.t('Aktivierung: {0}', String(e.detail || '').slice(0, 140))
             : L().status.ready;
       if (host.dataset.state === 'idle') {
         statusEl.textContent = idleText;
       }
-    } else if (e.event === 'wake') {
-      window.core.assistant.open('wake', '');
+    } else if (e.event === 'heard') {
+      // every phrase the recognizer of Android heard, with its guesses separated by " | "
+      for (const guess of String(e.text || '').split(' | ')) {
+        const command = wakeCommand(guess);
+        if (command !== null) {
+          window.core.assistant.open('wake', command);
+          break;
+        }
+      }
     } else if (e.event === 'unpaired') {
       writeHistory([]);
       turns = [];

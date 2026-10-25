@@ -371,17 +371,17 @@ public class MainActivity extends Activity {
         private final Context context;
         private final AudioManager audio;
         private final CloudVoice cloud;
-        private final VoskWake wake;
-        // commands and answers go through OpenRouter, only the wake word is heard on the box itself (Vosk)
+        private final LocalWake wake;
+        // commands and answers go through OpenRouter, only the wake word is heard by Android itself
         private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
             this.context = context;
             cloud = new CloudVoice(context, secrets, usage);
-            wake = new VoskWake(context, cloud.mic(), cloud::micBusy, new VoskWake.Listener() {
+            wake = new LocalWake(context, cloud::micBusy, new LocalWake.Listener() {
                 @Override
-                public void woke() {
-                    callPage(0, "{\"event\":\"wake\"}");
+                public void heard(String text) {
+                    event("heard", "text", text);
                 }
 
                 @Override
@@ -583,8 +583,9 @@ public class MainActivity extends Activity {
         }
 
         /**
-         * Listens for "DriveDeck" offline (see VoskWake). A detection arrives as event {event:"wake"}, the state
-         * of the listener as {event:"wakeStatus", state: loading|ready|off|error, detail}.
+         * Listens for the wake word with the recognizer of Android (see LocalWake). Every phrase arrives as event
+         * {event:"heard", text} with the guesses separated by " | ", the page decides whether it was the wake word.
+         * The state of the listener arrives as {event:"wakeStatus", state: ready|off|error, detail}.
          */
         @JavascriptInterface
         public void setWake(boolean on, String languageTag) {
@@ -597,7 +598,7 @@ public class MainActivity extends Activity {
                     requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, WAKE_REQUEST);
                     return;
                 }
-                wake.start();
+                wake.start(languageTag);
             });
         }
 
@@ -617,8 +618,9 @@ public class MainActivity extends Activity {
                     callPage(id, "{\"error\":\"" + CloudVoice.text(languageTag, "nokey") + "\"}");
                     return;
                 }
-                // the wake word listener gives the microphone up as soon as this recording asks for it
-                cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
+                // the recognizer of the wake word lets the microphone go first
+                wake.pauseFor(1500);
+                web.postDelayed(() -> cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json)), 300);
             });
         }
 
