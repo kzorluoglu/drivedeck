@@ -300,7 +300,8 @@ public class MainActivity extends Activity {
         if (customView != null) {
             leaveFullscreen();
         } else {
-            super.onBackPressed();
+            // as the home screen of the box DriveDeck must not close itself, it only steps behind
+            moveTaskToBack(true);
         }
     }
 
@@ -819,6 +820,36 @@ public class MainActivity extends Activity {
 
         private void voiceError(String message) {
             event("voiceError", "message", message);
+        }
+
+        /**
+         * Opens a part of the box outside DriveDeck: "settings" (Android settings) or "launcher" (the home screen
+         * the box came with). Returns false when there is none.
+         */
+        @JavascriptInterface
+        public boolean openSystem(String which) {
+            Intent intent;
+            if (which.equals("settings")) {
+                intent = new Intent(Settings.ACTION_SETTINGS);
+            } else if (which.equals("launcher")) {
+                intent = null;
+                Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+                for (android.content.pm.ResolveInfo info : getPackageManager().queryIntentActivities(home, 0)) {
+                    if (!info.activityInfo.packageName.equals(getPackageName())) {
+                        intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                                .setClassName(info.activityInfo.packageName, info.activityInfo.name);
+                        break;
+                    }
+                }
+                if (intent == null) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+            Intent start = intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            runOnUiThread(() -> startActivity(start));
+            return true;
         }
 
         @JavascriptInterface

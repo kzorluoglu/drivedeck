@@ -220,8 +220,9 @@
       name: 'open_app',
       description:
         'Öffnet eine App im Hauptbereich: browser, notes (Notizen), obd (Fahrzeugdaten), karaoke, paint, 2048, snake, ' +
-        'history (Gesprächsverlauf des Assistenten), pair (QR-Code zum Koppeln des Handys).',
-      parameters: { app: { type: 'string', enum: ['browser', 'notes', 'obd', 'karaoke', 'paint', '2048', 'snake', 'history', 'pair'] } },
+        'history (Gesprächsverlauf des Assistenten), pair (QR-Code zum Koppeln des Handys), ' +
+        'android_settings (Einstellungen von Android), box_launcher (der ursprüngliche Startbildschirm der Box).',
+      parameters: { app: { type: 'string', enum: ['browser', 'notes', 'obd', 'karaoke', 'paint', '2048', 'snake', 'history', 'pair', 'android_settings', 'box_launcher'] } },
     },
     { name: 'close_app', description: 'Schließt die offene App oder den Browser, danach ist die Karte wieder ganz zu sehen.', parameters: {} },
   ].map((t) => {
@@ -625,6 +626,9 @@
         if (app === 'history' || app === 'pair') {
           window.core.assistant.open(app);
           return { ok: true };
+        }
+        if (app === 'android_settings' || app === 'box_launcher') {
+          return device.openSystem(app === 'android_settings' ? 'settings' : 'launcher') ? { ok: true } : { error: 'Nicht gefunden' };
         }
         if (app === 'browser') {
           return (await showPane()) ? { ok: true } : { error: L().driving };

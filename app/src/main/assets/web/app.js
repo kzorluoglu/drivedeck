@@ -398,6 +398,13 @@
       window.core.intro.open();
       return;
     }
+    if ((tile.dataset.action === 'settings' || tile.dataset.action === 'launcher') && device && device.openSystem) {
+      closeSheet();
+      if (!device.openSystem(tile.dataset.action)) {
+        toast(window.i18n.t('Nicht gefunden'));
+      }
+      return;
+    }
     if (tile.dataset.action === 'reload') {
       location.reload();
       return;
