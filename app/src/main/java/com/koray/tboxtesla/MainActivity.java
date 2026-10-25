@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -96,6 +97,7 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(Color.BLACK);
+        noLongPress(web);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -175,6 +177,23 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Holding the centre key (to start the assistant) is a long click for Android, a WebView answers it with
+     * text selection and its bar at the top of the screen. There is nothing to select with keys in the car.
+     */
+    private static void noLongPress(WebView view) {
+        view.setLongClickable(false);
+        view.setOnLongClickListener((v) -> true);
+        view.setHapticFeedbackEnabled(false);
+    }
+
+    // any selection or copy bar that still opens is closed right away
+    @Override
+    public void onActionModeStarted(ActionMode mode) {
+        super.onActionModeStarted(mode);
+        mode.finish();
+    }
+
+    /**
      * Sends a result to the page: window.core.native(id, payload). Id 0 is for events.
      */
     private void callPage(int id, String payload) {
@@ -191,6 +210,7 @@ public class MainActivity extends Activity {
         }
         agentWeb = new WebView(this);
         agentWeb.setBackgroundColor(Color.parseColor("#0f1012"));
+        noLongPress(agentWeb);
         WebSettings settings = agentWeb.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
