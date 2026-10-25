@@ -23,6 +23,12 @@
     register(app) {
       webApps.push(app);
     },
+    open(id) {
+      const app = webApps.find((a) => a.id === id);
+      if (app) {
+        openWebApp(app);
+      }
+    },
   };
 
   function isMoving() {

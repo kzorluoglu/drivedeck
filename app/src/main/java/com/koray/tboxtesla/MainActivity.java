@@ -13,10 +13,6 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
-import android.speech.RecognitionListener;
-import android.speech.RecognizerIntent;
-import android.speech.SpeechRecognizer;
-import java.util.ArrayList;
 import android.speech.tts.TextToSpeech;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -47,6 +43,7 @@ public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1;
     private static final int AUDIO_REQUEST = 2;
     private static final int BLUETOOTH_REQUEST = 3;
+    private static final int WAKE_REQUEST = 4;
 
     // Assets are served from this https origin so the page can fetch its own files (3D models)
     // and counts as a secure context for geolocation.
@@ -60,7 +57,6 @@ public class MainActivity extends Activity {
     private PairingServer pairing;
     private TileCache tiles;
     private final ObdClient obd = new ObdClient();
-    private SpeechRecognizer recognizer;
     private int listenId;
     private String listenLanguage;
     private String pendingObdAddress;
@@ -310,6 +306,10 @@ public class MainActivity extends Activity {
             } else {
                 callPage(listenId, "{\"error\":\"Mikrofon nicht erlaubt\"}");
             }
+        } else if (requestCode == WAKE_REQUEST) {
+            if (granted) {
+                bridge.setWake(true, bridge.speechTag);
+            }
         } else if (requestCode == BLUETOOTH_REQUEST) {
             if (granted && pendingObdAddress != null) {
                 obd.connect(pendingObdAddress);
@@ -326,10 +326,13 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+        bridge.holdWake(false);
     }
 
     @Override
     protected void onPause() {
+        // other apps (phone calls, CarPlay) get the microphone back while DriveDeck is in the background
+        bridge.holdWake(true);
         web.onPause();
         super.onPause();
     }
@@ -339,9 +342,6 @@ public class MainActivity extends Activity {
         unregisterReceiver(installResult);
         pairing.stop();
         obd.disconnect();
-        if (recognizer != null) {
-            recognizer.destroy();
-        }
         bridge.shutdown();
         super.onDestroy();
     }
@@ -354,8 +354,7 @@ public class MainActivity extends Activity {
         private final AudioManager audio;
         private final TextToSpeech tts;
         private final CloudVoice cloud;
-        // speech through OpenRouter, the system voice and recognizer take over without a key or when it fails
-        private boolean cloudVoice = true;
+        // speech goes through OpenRouter, the system voice only speaks without a key or when OpenRouter cannot be reached
         private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
@@ -372,7 +371,12 @@ public class MainActivity extends Activity {
             }
         }
 
+        void holdWake(boolean hold) {
+            cloud.holdWake(hold);
+        }
+
         void shutdown() {
+            cloud.stopWake();
             cloud.stopSpeaking(true);
             tts.shutdown();
         }
@@ -544,22 +548,32 @@ public class MainActivity extends Activity {
         }
 
         /**
-         * Switches between OpenRouter voice (true, needs the key) and the voice of Android.
+         * Listens for the wake word in the background. Everything heard arrives as event {event:"heard", text},
+         * the page decides whether it was meant for the assistant.
          */
         @JavascriptInterface
-        public void setCloudVoice(boolean on) {
-            cloudVoice = on;
-            if (!on) {
-                cloud.stopSpeaking(true);
-            }
-        }
-
-        private boolean useCloud() {
-            return cloudVoice && cloud.available();
+        public void setWake(boolean on, String languageTag) {
+            runOnUiThread(() -> {
+                if (!on) {
+                    cloud.stopWake();
+                    return;
+                }
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, WAKE_REQUEST);
+                    return;
+                }
+                cloud.startWake(languageTag, (text) -> {
+                    try {
+                        callPage(0, new JSONObject().put("event", "heard").put("text", text).toString());
+                    } catch (Exception e) {
+                        // nothing heard then
+                    }
+                });
+            });
         }
 
         /**
-         * Speech to text. The result arrives as window.core.native(id, {text} or {error}).
+         * Speech to text through OpenRouter. The result arrives as window.core.native(id, {text} or {error}).
          */
         @JavascriptInterface
         public void listen(int id, String languageTag) {
@@ -570,70 +584,19 @@ public class MainActivity extends Activity {
                     requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, AUDIO_REQUEST);
                     return;
                 }
-                if (useCloud()) {
-                    cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
+                if (!cloud.available()) {
+                    callPage(id, "{\"error\":\"" + CloudVoice.text(languageTag, "nokey") + "\"}");
                     return;
                 }
-                if (!SpeechRecognizer.isRecognitionAvailable(MainActivity.this)) {
-                    callPage(id, "{\"error\":\"Keine Spracherkennung auf diesem Gerät\"}");
-                    return;
-                }
-                if (recognizer == null) {
-                    recognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
-                }
-                recognizer.setRecognitionListener(new RecognitionListener() {
-                    @Override
-                    public void onResults(Bundle results) {
-                        ArrayList<String> texts = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        String text = texts == null || texts.isEmpty() ? "" : texts.get(0);
-                        callPage(id, "{\"text\":" + JSONObject.quote(text) + "}");
-                    }
-
-                    @Override
-                    public void onError(int error) {
-                        callPage(id, "{\"error\":\"" + (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                                ? "Nichts verstanden" : "Spracherkennung Fehler " + error) + "\"}");
-                    }
-
-                    @Override
-                    public void onReadyForSpeech(Bundle params) {
-                        callPage(0, "{\"event\":\"listening\"}");
-                    }
-
-                    @Override
-                    public void onBeginningOfSpeech() { }
-
-                    @Override
-                    public void onRmsChanged(float rmsdB) { }
-
-                    @Override
-                    public void onBufferReceived(byte[] buffer) { }
-
-                    @Override
-                    public void onEndOfSpeech() { }
-
-                    @Override
-                    public void onPartialResults(Bundle partialResults) { }
-
-                    @Override
-                    public void onEvent(int eventType, Bundle params) { }
-                });
-                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag);
-                recognizer.startListening(intent);
+                cloud.listen(languageTag, () -> callPage(0, "{\"event\":\"listening\"}"), (json) -> callPage(id, json));
             });
         }
 
         @JavascriptInterface
         public void stopListening() {
             runOnUiThread(() -> {
-                if (cloud.isRecording()) {
-                    // a second tap on the microphone ends the recording and transcribes it
-                    cloud.finishListening();
-                } else if (recognizer != null) {
-                    recognizer.cancel();
-                }
+                // a second tap ends the recording and transcribes it
+                cloud.finishListening();
             });
         }
 
@@ -641,9 +604,6 @@ public class MainActivity extends Activity {
         public void cancelListening() {
             runOnUiThread(() -> {
                 cloud.cancelListening();
-                if (recognizer != null) {
-                    recognizer.cancel();
-                }
             });
         }
 
@@ -726,7 +686,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void speak(String text) {
-            if (useCloud()) {
+            if (cloud.available()) {
                 cloud.speak(text, speechTag, () -> tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav"));
             } else {
                 tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav");

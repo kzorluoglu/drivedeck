@@ -23,8 +23,8 @@
     vmouse: readStored('vmouse', '0') === '1',
     // above 5 km/h the browser, games and text input are locked, on by default
     driveLock: readStored('driveLock', '1') === '1',
-    // speech recognition and voice through OpenRouter instead of the services of Android
-    cloudVoice: readStored('cloudVoice', '1') === '1',
+    // listens for "DriveDeck" and hands what follows to the assistant
+    wake: readStored('wake', '1') === '1',
     // looks for a newer release on GitHub now and then and asks before installing
     autoUpdate: readStored('autoUpdate', '1') === '1',
   };
@@ -36,7 +36,7 @@
     eco: (v) => (v ? 'Sparsam (30 FPS)' : 'Volle Qualität'),
     vmouse: (v) => (v ? 'An' : 'Aus'),
     driveLock: (v) => (v ? 'An (ab 5 km/h)' : 'Aus'),
-    cloudVoice: (v) => (v ? 'OpenRouter' : 'Android'),
+    wake: (v) => (v ? 'An' : 'Aus'),
     autoUpdate: (v) => (v ? 'An' : 'Aus'),
   };
 
@@ -271,7 +271,9 @@
   // the voice of the navigation follows the app language from the start, not only after the assistant was opened
   if (device && device.setSpeechLanguage) {
     device.setSpeechLanguage(window.i18n.tag);
-    device.setCloudVoice(state.cloudVoice);
+    if (device.setWake) {
+      device.setWake(state.wake, window.i18n.tag);
+    }
   }
 
   const effects = {
@@ -284,10 +286,10 @@
     autoUpdate(on) {
       store('autoUpdate', on ? '1' : '0');
     },
-    cloudVoice(on) {
-      store('cloudVoice', on ? '1' : '0');
-      if (device && device.setCloudVoice) {
-        device.setCloudVoice(on);
+    wake(on) {
+      store('wake', on ? '1' : '0');
+      if (device && device.setWake) {
+        device.setWake(on, window.i18n.tag);
       }
     },
     vmouse(on) {
@@ -390,6 +392,11 @@
       const order = window.i18n.langs;
       window.i18n.setLang(order[(order.indexOf(window.i18n.lang) + 1) % order.length]);
       location.reload();
+      return;
+    }
+    if (tile.dataset.action === 'history' || tile.dataset.action === 'pair') {
+      closeSheet();
+      window.core.assistant.open(tile.dataset.action);
       return;
     }
     if (tile.dataset.action === 'intro') {

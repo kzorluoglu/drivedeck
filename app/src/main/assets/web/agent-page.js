@@ -99,6 +99,27 @@
       }
       return { paused: v.paused, muted: v.muted, time: Math.round(v.currentTime), duration: Math.round(v.duration || 0), title: document.title };
     },
+    // Leaves only the video player on the page, filling the whole browser (YouTube and the like).
+    minimal: function () {
+      var v = document.querySelector('video');
+      if (!v) {
+        return { error: 'Kein Video auf der Seite' };
+      }
+      var box = v.closest('#player-container-id, .player-container, #player, .html5-video-player') || v.parentElement;
+      box.setAttribute('data-ai-player', '');
+      var style = document.getElementById('__ai-minimal') || document.createElement('style');
+      style.id = '__ai-minimal';
+      style.textContent =
+        'html,body{overflow:hidden!important;background:#000!important}' +
+        '[data-ai-player]{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;' +
+        'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;transform:none!important;' +
+        'z-index:2147483647!important;background:#000!important}' +
+        '[data-ai-player] video{left:0!important;top:0!important;width:100%!important;height:100%!important;object-fit:contain!important}';
+      document.head.appendChild(style);
+      window.scrollTo(0, 0);
+      window.dispatchEvent(new Event('resize'));
+      return { ok: true };
+    },
     // Fills the user name and, when the page already shows it, the password (Google asks in two steps).
     fill: function (user, pass) {
       var inputs = Array.prototype.slice.call(document.querySelectorAll('input')).filter(visible);

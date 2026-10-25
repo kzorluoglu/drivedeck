@@ -25,17 +25,25 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Speech to text and text to speech through OpenRouter, so the voice does not depend on the
- * speech services of the box. The key stays on this side, like for the chat requests.
+ * speech services of the box. The key stays on this side, like for the chat requests. Also
+ * listens for the wake word: every short burst of speech is transcribed and handed to the page.
  */
 class CloudVoice {
     interface Callback {
         void done(String json);
+    }
+
+    interface WakeCallback {
+        void heard(String text);
     }
 
     private static final String BASE = "https://openrouter.ai/api/v1/audio/";
@@ -49,6 +57,12 @@ class CloudVoice {
     private static final int SILENCE_END_MS = 1300;
     private static final int MAX_MS = 25000;
     private static final int CACHE_FILES = 300;
+    // the wake word with a short command fits in a few seconds, longer sound is talk or music
+    private static final int WAKE_SILENCE_END_MS = 700;
+    private static final int WAKE_MIN_MS = 300;
+    private static final int WAKE_MAX_MS = 8000;
+    private static final int WAKE_PREROLL = 3;
+    private static final int AFTER_SPEECH_MS = 500;
 
     private final Context context;
     private final SecretStore secrets;
@@ -59,7 +73,14 @@ class CloudVoice {
     private volatile boolean cancel;
     private volatile boolean recording;
     private volatile int speakToken;
-    private MediaPlayer player;
+    private volatile MediaPlayer player;
+    // one recorder at a time: the wake loop gives the microphone up for a command
+    private final Semaphore mic = new Semaphore(1);
+    private volatile boolean wakeOn;
+    private volatile boolean wakeHeld;
+    private volatile String wakeTag = "de-DE";
+    private volatile long quietUntil;
+    private Thread wakeThread;
 
     CloudVoice(Context context, SecretStore secrets) {
         this.context = context;
@@ -74,10 +95,6 @@ class CloudVoice {
     }
 
     // Speech to text
-
-    boolean isRecording() {
-        return recording;
-    }
 
     /** Ends the recording and transcribes what was said so far. */
     void finishListening() {
@@ -101,7 +118,15 @@ class CloudVoice {
         new Thread(() -> {
             String result;
             try {
-                byte[] pcm = record(onReady);
+                if (!mic.tryAcquire(3, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Mikrofon belegt");
+                }
+                byte[] pcm;
+                try {
+                    pcm = record(onReady);
+                } finally {
+                    mic.release();
+                }
                 recording = false;
                 if (cancel) {
                     result = "{\"error\":\"" + text(languageTag, "nothing") + "\"}";
@@ -217,6 +242,139 @@ class CloudVoice {
                 : "{\"text\":" + JSONObject.quote(spoken) + "}";
     }
 
+    // Wake word
+
+    /** Starts listening for the wake word, or only switches the language when it already runs. */
+    void startWake(String languageTag, WakeCallback callback) {
+        wakeTag = languageTag;
+        wakeOn = true;
+        if (wakeThread != null && wakeThread.isAlive()) {
+            return;
+        }
+        wakeThread = new Thread(() -> wakeLoop(callback), "wake");
+        wakeThread.start();
+    }
+
+    void stopWake() {
+        wakeOn = false;
+    }
+
+    /** Lets the microphone go while the app is in the background. */
+    void holdWake(boolean hold) {
+        wakeHeld = hold;
+    }
+
+    private boolean wakePaused() {
+        return !wakeOn || wakeHeld || recording || player != null || System.currentTimeMillis() < quietUntil || !available();
+    }
+
+    private void wakeLoop(WakeCallback callback) {
+        while (wakeOn) {
+            if (wakePaused() || !mic.tryAcquire()) {
+                pause(300);
+                continue;
+            }
+            byte[] pcm;
+            try {
+                pcm = burst();
+            } catch (Exception e) {
+                Log.w("CloudVoice", "wake recording failed: " + e.getMessage());
+                pcm = null;
+                pause(2000);
+            } finally {
+                mic.release();
+            }
+            if (pcm == null) {
+                continue;
+            }
+            try {
+                String text = new JSONObject(transcribe(pcm, wakeTag)).optString("text", "");
+                if (!text.isEmpty() && wakeOn) {
+                    callback.heard(text);
+                }
+            } catch (Exception e) {
+                Log.w("CloudVoice", "wake transcription failed: " + e.getMessage());
+                pause(2000);
+            }
+        }
+    }
+
+    /**
+     * Waits for a short burst of speech and returns it as PCM, or null when the loop should pause
+     * or the sound was too short or too long to be the wake word.
+     */
+    private byte[] burst() {
+        int minimum = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.MIC, RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(minimum, CHUNK * 4));
+        if (recorder.getState() != AudioRecord.STATE_INITIALIZED) {
+            recorder.release();
+            throw new IllegalStateException("Mikrofon nicht verfügbar");
+        }
+        ArrayDeque<byte[]> preroll = new ArrayDeque<>();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        short[] chunk = new short[CHUNK];
+        double floor = -1;
+        long speechStart = 0;
+        long lastVoice = 0;
+        recorder.startRecording();
+        try {
+            while (!wakePaused()) {
+                int read = recorder.read(chunk, 0, chunk.length);
+                if (read <= 0) {
+                    return null;
+                }
+                double sum = 0;
+                ByteBuffer bytes = ByteBuffer.allocate(read * 2).order(ByteOrder.LITTLE_ENDIAN);
+                for (int i = 0; i < read; i++) {
+                    sum += (double) chunk[i] * chunk[i];
+                    bytes.putShort(chunk[i]);
+                }
+                double rms = Math.sqrt(sum / read);
+                long now = System.currentTimeMillis();
+                boolean voice = floor >= 0 && rms > Math.max(600, floor * 3);
+                if (speechStart == 0) {
+                    // the noise level of the car drifts, so it follows the quiet parts slowly
+                    floor = floor < 0 ? rms : floor * 0.95 + Math.max(rms, 1) * 0.05;
+                    preroll.addLast(bytes.array());
+                    if (preroll.size() > WAKE_PREROLL) {
+                        preroll.removeFirst();
+                    }
+                    if (voice) {
+                        speechStart = now;
+                        lastVoice = now;
+                        for (byte[] part : preroll) {
+                            out.write(part, 0, part.length);
+                        }
+                    }
+                    continue;
+                }
+                out.write(bytes.array(), 0, read * 2);
+                if (voice) {
+                    lastVoice = now;
+                }
+                if (now - speechStart > WAKE_MAX_MS) {
+                    return null;
+                }
+                if (now - lastVoice > WAKE_SILENCE_END_MS) {
+                    return lastVoice - speechStart >= WAKE_MIN_MS ? out.toByteArray() : null;
+                }
+            }
+            return null;
+        } finally {
+            recorder.stop();
+            recorder.release();
+        }
+    }
+
+    private static void pause(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     // Text to speech
 
     /**
@@ -257,6 +415,7 @@ class CloudVoice {
             }
             player.release();
             player = null;
+            quietUntil = System.currentTimeMillis() + AFTER_SPEECH_MS;
         }
     }
 
@@ -272,12 +431,14 @@ class CloudVoice {
                 p.release();
                 if (player == p) {
                     player = null;
+                    quietUntil = System.currentTimeMillis() + AFTER_SPEECH_MS;
                 }
             });
             next.setOnErrorListener((p, what, extra) -> {
                 p.release();
                 if (player == p) {
                     player = null;
+                    quietUntil = System.currentTimeMillis() + AFTER_SPEECH_MS;
                 }
                 fallback.run();
                 return true;
@@ -377,7 +538,7 @@ class CloudVoice {
         return tag.startsWith("en") ? "English" : "German";
     }
 
-    private static String text(String tag, String key) {
+    static String text(String tag, String key) {
         boolean tr = tag.startsWith("tr");
         boolean en = tag.startsWith("en");
         if (key.equals("nokey")) {

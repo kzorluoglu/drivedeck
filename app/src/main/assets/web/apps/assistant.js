@@ -7,7 +7,12 @@
   const KEEP_USER_TURNS = 4;
   const RESULT_LIMIT = 6000;
   const CONFIRM_TIMEOUT_MS = 45000;
-  const SPEAK_KEY = 'assistantSpeak';
+  const CAPTION_MS = 8000;
+  const HISTORY_KEY = 'assistantHistory';
+  const HISTORY_MAX = 200;
+
+  // "DriveDeck" the way speech recognition writes it: Drive Deck, DriveDeck, Draiv dek, Dreiwdeck ...
+  const WAKE = /dr(?:ai|ay|ei|i|y|ı|a)?[vwf]?e?[\s-]?[dt][eaiı](?:ck|k|c|g|q)/i;
 
   // Clicks on buttons like these need a yes from the driver first.
   const SENSITIVE = /kaufen|bestell|bezahl|zahlungspflichtig|abonnier|senden|absenden|veröffentlich|löschen|entfernen|bestätig|buy|purchase|checkout|\bpay\b|order|subscribe|send|post|publish|delete|remove|confirm|submit|satın|öde|sipariş|abone|gönder|yayınla|\bsil\b|onayla/i;
@@ -19,21 +24,18 @@
     de: {
       name: 'Deutsch',
       tag: 'de-DE',
-      placeholder: 'Was soll ich tun?',
-      send: 'Senden',
-      stop: 'Stopp',
-      speakOn: 'Vorlesen: an',
-      speakOff: 'Vorlesen: aus',
       pair: 'Koppeln',
       wipe: 'Daten löschen',
       wipeSure: 'Sicher?',
-      ready: (model) => `Modell: ${model}. Sag mir, was ich im Auto erledigen soll.`,
+      history: 'Verlauf',
+      clear: 'Leeren',
+      empty: 'Noch keine Gespräche.',
+      close: 'Schließen',
       paired: 'Gekoppelt. Los geht es.',
-      noKey: 'Ohne Schlüssel kann der Assistent nicht antworten',
+      noKey: 'Ohne Schlüssel kann der Assistent nicht antworten. Unter Apps → Einstellungen → Koppeln eintragen.',
       pairTitle: 'Mit dem Handy koppeln',
       steps: ['Handy und Box im selben WLAN oder Hotspot', 'QR-Code mit der Kamera scannen', 'Schlüssel und Anmeldungen am Handy eingeben, dort kannst du auch Ziele ans Auto senden'],
       back: 'Zurück',
-      paneHint: 'Hier erscheint der Browser',
       onlyApp: 'Der Assistent läuft nur in der App.',
       confirm: (what) => `Soll ich das tun? ${what}`,
       yes: 'Ja',
@@ -47,21 +49,18 @@
     tr: {
       name: 'Türkçe',
       tag: 'tr-TR',
-      placeholder: 'Ne yapmamı istersin?',
-      send: 'Gönder',
-      stop: 'Dur',
-      speakOn: 'Sesli okuma: açık',
-      speakOff: 'Sesli okuma: kapalı',
       pair: 'Eşleştir',
       wipe: 'Verileri sil',
       wipeSure: 'Emin misin?',
-      ready: (model) => `Model: ${model}. Arabada ne yapmamı istediğini söyle.`,
+      history: 'Geçmiş',
+      clear: 'Temizle',
+      empty: 'Henüz konuşma yok.',
+      close: 'Kapat',
       paired: 'Eşleşti. Başlayabiliriz.',
-      noKey: 'Anahtar olmadan asistan cevap veremez',
+      noKey: 'Anahtar olmadan asistan cevap veremez. Uygulamalar → Ayarlar → Eşleştir ile gir.',
       pairTitle: 'Telefonla eşleştir',
       steps: ['Telefon ve kutu aynı Wi-Fi veya hotspot üzerinde olmalı', 'QR kodu kamerayla okut', 'Anahtarı ve girişleri telefonda gir, oradan arabaya hedef de gönderebilirsin'],
       back: 'Geri',
-      paneHint: 'Tarayıcı burada görünecek',
       onlyApp: 'Asistan sadece uygulamada çalışır.',
       confirm: (what) => `Bunu yapayım mı? ${what}`,
       yes: 'Evet',
@@ -75,21 +74,18 @@
     en: {
       name: 'English',
       tag: 'en-US',
-      placeholder: 'What should I do?',
-      send: 'Send',
-      stop: 'Stop',
-      speakOn: 'Read aloud: on',
-      speakOff: 'Read aloud: off',
       pair: 'Pair',
       wipe: 'Delete data',
       wipeSure: 'Sure?',
-      ready: (model) => `Model: ${model}. Tell me what to do in the car.`,
+      history: 'History',
+      clear: 'Clear',
+      empty: 'No conversations yet.',
+      close: 'Close',
       paired: 'Paired. Let us go.',
-      noKey: 'Without a key the assistant cannot answer',
+      noKey: 'Without a key the assistant cannot answer. Enter it under Apps → Settings → Pair.',
       pairTitle: 'Pair with your phone',
       steps: ['Phone and box on the same Wi-Fi or hotspot', 'Scan the QR code with the camera', 'Enter key and logins on the phone, you can also send destinations to the car from there'],
       back: 'Back',
-      paneHint: 'The browser appears here',
       onlyApp: 'The assistant only runs in the app.',
       confirm: (what) => `Shall I do this? ${what}`,
       yes: 'Yes',
@@ -105,7 +101,7 @@
   const OPTIONAL = new Set(['submit', 'chat', 'radius_m', 'along_route', 'hours_ahead', 'place', 'minutes', 'at', 'background', 'level', 'direction']);
 
   const TOOLS = [
-    { name: 'search', description: 'Sucht im Web (DuckDuckGo) und zeigt die Trefferseite.', parameters: { query: { type: 'string' } } },
+    { name: 'search', description: 'Sucht im Web (Google) und zeigt die Trefferseite.', parameters: { query: { type: 'string' } } },
     { name: 'open_url', description: 'Öffnet eine Webadresse im Browser.', parameters: { url: { type: 'string' } } },
     { name: 'read_page', description: 'Liest die aktuelle Seite: Text und nummerierte bedienbare Elemente.', parameters: {} },
     { name: 'click', description: 'Klickt ein Element der letzten Seitenansicht an (id aus read_page).', parameters: { id: { type: 'integer' } } },
@@ -190,8 +186,8 @@
     {
       name: 'set_layout',
       description:
-        'Ändert die Bildschirmaufteilung: window (kleines Fenster mit Chat), split (Karte/Navigation links, Browser rechts, ' +
-        'jeweils halbe Breite), full (Browser über den ganzen Bildschirm, zum Beispiel für Videos, Navigation bleibt links sichtbar). chat steuert den Chat.',
+        'Ändert die Bildschirmaufteilung: window (kleines Fenster mit KI-Anzeige), split (Karte/Navigation links, Browser rechts, ' +
+        'jeweils halbe Breite), full (Browser über den ganzen Bildschirm, zum Beispiel für Videos, Navigation bleibt links sichtbar). chat zeigt oder versteckt die KI-Anzeige.',
       parameters: { mode: { type: 'string', enum: ['window', 'split', 'full'] }, chat: { type: 'boolean' } },
     },
   ].map((t) => ({
@@ -232,7 +228,82 @@
     return carState.driveLock && carState.speed > MAX_PARKED_SPEED;
   }
 
-  const MIC_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  const ICONS = {
+    back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+    dot: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg>',
+    window: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14"/></svg>',
+    split: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/></svg>',
+    full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  };
+
+  // The conversation log, only shown under Apps → Settings → Assistant
+
+  function readHistory() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(HISTORY_KEY));
+      return Array.isArray(stored) ? stored : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeHistory(entries) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(-HISTORY_MAX)));
+    } catch (e) {
+      // the log is a convenience, the assistant works without it
+    }
+  }
+
+  // A short rising tone: the wake word was heard, now the command
+  function chime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(990, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+      osc.onended = () => ctx.close();
+    } catch (e) {
+      // no sound then, the dot still shows that it listens
+    }
+  }
+
+  // the open assistant window, and what it should do once it has opened
+  let active = null;
+  let pending = null;
+
+  window.core.assistant = {
+    /**
+     * Opens the assistant (or reaches the open one): view 'pair' or 'history', or 'wake' with the
+     * command spoken after the wake word (empty: listen for it).
+     */
+    open(view, text) {
+      if (active) {
+        active.start(view, text);
+        return;
+      }
+      pending = { view, text };
+      window.WebApps.open('assistant');
+    },
+  };
+
+  window.core.onEvent((e) => {
+    if (e.event !== 'heard') {
+      return;
+    }
+    const text = String(e.text || '');
+    const match = WAKE.exec(text);
+    if (match) {
+      const command = text.slice(match.index + match[0].length).replace(/^[\s,.!?:;-]+/, '').trim();
+      window.core.assistant.open('wake', command.length > 1 ? command : '');
+    }
+  });
 
   window.WebApps.register({
     id: 'assistant',
@@ -246,102 +317,123 @@
 
       if (!device || !device.startPairing) {
         el.innerHTML = `<p class="as-note">${L().onlyApp}</p>`;
+        pending = null;
         return null;
       }
       el.innerHTML = `
-        <div class="assistant">
-          <section class="as-chat">
-            <header class="as-tools">
-              <button data-act="speak"></button>
-              <button data-act="lang"></button>
-              <button data-act="pair"></button>
-              <button data-act="wipe"></button>
-              <span class="as-cost"></span>
-            </header>
-            <div class="as-log"></div>
-            <form class="as-form">
-              <input type="text" autocomplete="off" spellcheck="false">
-              <button type="button" class="as-mic">${MIC_ICON}</button>
-              <button type="submit"></button>
-            </form>
+        <div class="assistant" data-state="idle">
+          <section class="as-stage">
+            <button class="as-orb"><i></i></button>
+            <p class="as-caption"></p>
+            <div class="as-confirm" hidden><button class="yes"></button><button class="no"></button></div>
           </section>
           <section class="as-main">
             <div class="as-bar">
-              <button data-layout="chat">Chat</button>
-              <button data-act="back-page">&#8592;</button>
+              <button data-act="back-page">${ICONS.back}</button>
+              <button data-layout="chat">${ICONS.dot}</button>
               <span class="gap"></span>
-              <button data-layout="window">Fenster</button>
-              <button data-layout="split">Halb</button>
-              <button data-layout="full">Voll</button>
+              <button data-layout="window">${ICONS.window}</button>
+              <button data-layout="split">${ICONS.split}</button>
+              <button data-layout="full">${ICONS.full}</button>
             </div>
-            <div class="as-pane"><p></p></div>
+            <div class="as-pane"></div>
           </section>
-          <section class="as-pair" hidden>
+          <section class="as-sheet as-pair" hidden>
             <div class="as-qr"><img alt=""></div>
             <div class="as-steps">
               <h3></h3>
               <ol></ol>
               <p class="as-url"></p>
               <button data-act="back"></button>
+              <button data-act="wipe"></button>
             </div>
+          </section>
+          <section class="as-sheet as-history" hidden>
+            <header>
+              <h3></h3>
+              <span class="gap"></span>
+              <button data-act="clear"></button>
+              <button data-act="close"></button>
+            </header>
+            <div class="as-log"></div>
           </section>
         </div>`;
 
       const root = el.querySelector('.assistant');
-      const log = el.querySelector('.as-log');
-      const chatView = el.querySelector('.as-chat');
+      const stage = el.querySelector('.as-stage');
+      const orb = el.querySelector('.as-orb');
+      const caption = el.querySelector('.as-caption');
+      const confirmRow = el.querySelector('.as-confirm');
       const appWindow = document.getElementById('app-window');
       const bar = el.querySelector('.as-bar');
-      const form = el.querySelector('.as-form');
-      const input = form.querySelector('input');
-      const send = form.querySelector('[type=submit]');
-      const mic = form.querySelector('.as-mic');
       const pairView = el.querySelector('.as-pair');
       const pairImg = pairView.querySelector('img');
       const pairUrl = pairView.querySelector('.as-url');
-      const speakBtn = el.querySelector('[data-act=speak]');
-      const langBtn = el.querySelector('[data-act=lang]');
-      const pairBtn = el.querySelector('[data-act=pair]');
-      const wipeBtn = el.querySelector('[data-act=wipe]');
-      const costEl = el.querySelector('.as-cost');
+      const wipeBtn = pairView.querySelector('[data-act=wipe]');
+      const historyView = el.querySelector('.as-history');
+      const log = historyView.querySelector('.as-log');
       const paneEl = el.querySelector('.as-pane');
       const pane = window.core.browser.attach(paneEl);
 
       let assistantState = readState();
-      let history = [];
+      let turns = [];
       let busy = false;
+      let listening = false;
       let cancelled = false;
       let paneShown = false;
-      let speak = localStorage.getItem(SPEAK_KEY) !== '0';
       let layout = 'window';
       let layoutBeforeVideo = null;
       let lastPlaces = [];
       let drivingNow = false;
-      let totalCost = 0;
-      let totalTokens = 0;
+      let captionTimer = null;
+      let speakTimer = null;
 
       function renderTexts() {
         const t = L();
-        input.placeholder = t.placeholder;
-        send.textContent = busy ? t.stop : t.send;
-        speakBtn.textContent = speak ? t.speakOn : t.speakOff;
-        langBtn.hidden = true;
-        pairBtn.textContent = t.pair;
-        wipeBtn.textContent = wipeBtn.dataset.sure ? t.wipeSure : t.wipe;
-        paneEl.querySelector('p').textContent = t.paneHint;
         pairView.querySelector('h3').textContent = t.pairTitle;
         pairView.querySelector('ol').innerHTML = t.steps.map((s) => `<li>${s}</li>`).join('');
         pairView.querySelector('[data-act=back]').textContent = t.back;
+        wipeBtn.textContent = wipeBtn.dataset.sure ? t.wipeSure : t.wipe;
+        historyView.querySelector('h3').textContent = t.history;
+        historyView.querySelector('[data-act=clear]').textContent = t.clear;
+        historyView.querySelector('[data-act=close]').textContent = t.close;
+        confirmRow.querySelector('.yes').textContent = t.yes;
+        confirmRow.querySelector('.no').textContent = t.no;
         device.setSpeechLanguage(t.tag);
       }
 
+      // idle, listen, think or speak: the dot and the background follow it
+      function setState(next) {
+        root.dataset.state = next;
+      }
+
+      function showCaption(text, kind) {
+        clearTimeout(captionTimer);
+        caption.textContent = text;
+        caption.className = `as-caption ${kind || ''}`;
+        captionTimer = setTimeout(() => caption.classList.add('faded'), CAPTION_MS);
+      }
+
       function say(kind, text) {
-        const line = document.createElement('div');
-        line.className = `as-msg ${kind}`;
-        line.textContent = text;
-        log.appendChild(line);
-        log.scrollTop = log.scrollHeight;
-        return line;
+        const entries = readHistory();
+        entries.push({ at: Date.now(), kind, text });
+        writeHistory(entries);
+        if (!historyView.hidden) {
+          renderHistory();
+        }
+        showCaption(text, kind);
+      }
+
+      function speakOut(text) {
+        device.speak(text);
+        setState('speak');
+        clearTimeout(speakTimer);
+        // the end of the playback is not reported, so the dot calms down after a rough estimate
+        speakTimer = setTimeout(() => {
+          if (root.dataset.state === 'speak') {
+            setState('idle');
+          }
+        }, Math.min(15000, Math.max(1500, text.length * 65)));
       }
 
       function toolLine(name, args) {
@@ -350,35 +442,52 @@
         say('tool', detail ? `${label}: ${detail}` : label);
       }
 
-      function renderCost() {
-        costEl.textContent = totalTokens ? `${totalTokens} Tokens${totalCost ? ` · $${totalCost.toFixed(4)}` : ''}` : '';
-      }
-
       // Asks the driver, resolves true only on a tap on yes. Never while driving.
       function confirmAction(what) {
         if (drivingNow) {
           return Promise.resolve(false);
         }
         return new Promise((resolve) => {
-          const line = say('ask', L().confirm(what));
-          const row = document.createElement('div');
-          row.className = 'as-confirm';
-          row.innerHTML = `<button class="yes">${L().yes}</button><button>${L().no}</button>`;
-          line.appendChild(row);
+          const question = L().confirm(what);
+          say('ask', question);
+          clearTimeout(captionTimer);
+          confirmRow.hidden = false;
           const done = (answer) => {
             clearTimeout(timer);
-            row.remove();
+            confirmRow.hidden = true;
+            confirmRow.onclick = null;
             resolve(answer);
           };
           const timer = setTimeout(() => done(false), CONFIRM_TIMEOUT_MS);
-          row.querySelector('.yes').addEventListener('click', () => done(true));
-          row.querySelector('button:not(.yes)').addEventListener('click', () => done(false));
+          confirmRow.onclick = (e) => {
+            const b = e.target.closest('button');
+            if (b) {
+              done(b.classList.contains('yes'));
+            }
+          };
         });
       }
 
-      // Pairing with the phone
+      // Pairing with the phone and the log, both reached from the settings.
+      // The native browser lies above the page, so it steps aside while they are open.
 
       let pollTimer = null;
+
+      function openSheet(view) {
+        const wasOpen = !pairView.hidden || !historyView.hidden;
+        pairView.hidden = view !== pairView;
+        historyView.hidden = view !== historyView;
+        if (!wasOpen) {
+          pane.suspend();
+        }
+      }
+
+      function closeSheet(view) {
+        view.hidden = true;
+        if (!drivingNow) {
+          pane.resume();
+        }
+      }
 
       function showPairing() {
         const result = JSON.parse(device.startPairing());
@@ -391,16 +500,76 @@
         qr.make();
         pairImg.src = qr.createDataURL(7, 3);
         pairUrl.textContent = result.url.replace(/\/p\/.*/, '');
-        pairView.hidden = false;
+        openSheet(pairView);
+        clearInterval(pollTimer);
         pollTimer = setInterval(() => { assistantState = readState(); }, 2000);
       }
 
       // the server keeps running after the pairing, so the phone can send more things
       function hidePairing() {
         clearInterval(pollTimer);
-        pairView.hidden = true;
+        closeSheet(pairView);
         assistantState = readState();
       }
+
+      function renderHistory() {
+        const entries = readHistory();
+        log.innerHTML = '';
+        if (!entries.length) {
+          log.innerHTML = `<p class="as-note">${L().empty}</p>`;
+          return;
+        }
+        entries.forEach((entry) => {
+          const line = document.createElement('div');
+          line.className = `as-msg ${entry.kind}`;
+          line.textContent = entry.text;
+          log.appendChild(line);
+        });
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function showHistory() {
+        renderHistory();
+        openSheet(historyView);
+      }
+
+      pairView.addEventListener('click', (e) => {
+        const act = e.target.dataset.act;
+        if (act === 'back') {
+          hidePairing();
+          if (!assistantState.hasKey) {
+            toast(L().noKey);
+          }
+        } else if (act === 'wipe') {
+          // second tap confirms, dialogs would block the page
+          if (wipeBtn.dataset.sure) {
+            device.clearAssistantData();
+            writeHistory([]);
+            assistantState = readState();
+            turns = [];
+            delete wipeBtn.dataset.sure;
+            renderTexts();
+            showPairing();
+          } else {
+            wipeBtn.dataset.sure = '1';
+            renderTexts();
+            setTimeout(() => {
+              delete wipeBtn.dataset.sure;
+              renderTexts();
+            }, 3000);
+          }
+        }
+      });
+
+      historyView.addEventListener('click', (e) => {
+        const act = e.target.dataset.act;
+        if (act === 'clear') {
+          writeHistory([]);
+          renderHistory();
+        } else if (act === 'close') {
+          closeSheet(historyView);
+        }
+      });
 
       // Layouts
 
@@ -445,9 +614,9 @@
         // the player of a page that goes fullscreen itself gets the same area
         const fs = cinemaRect();
         device.browserFullscreenRect(fs.x, fs.y, fs.w, fs.h, window.innerWidth);
-        chatView.hidden = chat === undefined ? mode !== 'window' : !chat;
+        stage.hidden = chat === undefined ? mode !== 'window' : !chat;
         bar.querySelectorAll('[data-layout]').forEach((b) => {
-          b.classList.toggle('on', b.dataset.layout === layout || (b.dataset.layout === 'chat' && !chatView.hidden));
+          b.classList.toggle('on', b.dataset.layout === layout || (b.dataset.layout === 'chat' && !stage.hidden));
         });
         if (window.core.map) {
           setTimeout(() => window.core.map.invalidateSize(), 50);
@@ -457,7 +626,7 @@
       function showPane() {
         if (!paneShown) {
           paneShown = true;
-          paneEl.classList.add('live');
+          root.classList.add('browsing');
         }
         if (!drivingNow) {
           pane.show();
@@ -470,7 +639,7 @@
         if (drivingNow) {
           pane.suspend();
           setLayout('window');
-          chatView.hidden = false;
+          stage.hidden = false;
         } else {
           pane.resume();
         }
@@ -486,7 +655,7 @@
         if (e.event === 'fullscreen') {
           // video fullscreen of the page (e.g. the YouTube button) shows the cinema layout too
           if (e.on && layout !== 'full') {
-            layoutBeforeVideo = { mode: layout, chat: !chatView.hidden };
+            layoutBeforeVideo = { mode: layout, chat: !stage.hidden };
             setLayout('full');
           } else if (!e.on && layoutBeforeVideo) {
             setLayout(layoutBeforeVideo.mode, layoutBeforeVideo.chat);
@@ -495,41 +664,7 @@
         } else if (e.event === 'paired') {
           hidePairing();
           say('note', L().paired);
-        }
-      });
-
-      el.querySelector('.as-tools').addEventListener('click', (e) => {
-        const act = e.target.dataset.act;
-        if (act === 'speak') {
-          speak = !speak;
-          localStorage.setItem(SPEAK_KEY, speak ? '1' : '0');
-          renderTexts();
-        } else if (act === 'pair') {
-          showPairing();
-        } else if (act === 'wipe') {
-          // second tap confirms, dialogs would block the page
-          if (wipeBtn.dataset.sure) {
-            device.clearAssistantData();
-            assistantState = readState();
-            history = [];
-            log.innerHTML = '';
-            delete wipeBtn.dataset.sure;
-            renderTexts();
-            showPairing();
-          } else {
-            wipeBtn.dataset.sure = '1';
-            renderTexts();
-            setTimeout(() => {
-              delete wipeBtn.dataset.sure;
-              renderTexts();
-            }, 3000);
-          }
-        }
-      });
-      pairView.querySelector('[data-act=back]').addEventListener('click', () => {
-        hidePairing();
-        if (!assistantState.hasKey) {
-          toast(L().noKey);
+          // the wake word needs the key, the loop picks it up by itself
         }
       });
 
@@ -539,7 +674,7 @@
           return;
         }
         if (b.dataset.layout === 'chat') {
-          setLayout(layout, chatView.hidden);
+          setLayout(layout, stage.hidden);
         } else if (b.dataset.layout) {
           setLayout(b.dataset.layout);
         } else if (b.dataset.act === 'back-page') {
@@ -568,7 +703,7 @@
           case 'search':
             toolLine(name, args);
             showPane();
-            await b.navigate(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`);
+            await b.navigate(`https://www.google.com/search?hl=${lang}&q=${encodeURIComponent(args.query)}`);
             return pageResult(300);
           case 'open_url':
             toolLine(name, args);
@@ -730,6 +865,8 @@
             await b.navigate(link);
             await wait(2500);
             const status = await b.eval('__ai.video("play")');
+            // only the player stays, no comments, no suggestions
+            await b.eval('__ai.minimal()');
             if (!drivingNow && !args.background) {
               showPane();
             }
@@ -827,22 +964,21 @@
       }
 
       function trimHistory() {
-        const users = history.map((m, i) => (m.role === 'user' ? i : -1)).filter((i) => i >= 0);
+        const users = turns.map((m, i) => (m.role === 'user' ? i : -1)).filter((i) => i >= 0);
         if (users.length > KEEP_USER_TURNS) {
-          history = history.slice(users[users.length - KEEP_USER_TURNS]);
+          turns = turns.slice(users[users.length - KEEP_USER_TURNS]);
         }
       }
 
-      async function ask(text, spoken) {
-        history.push({ role: 'user', content: text });
+      async function ask(text) {
+        turns.push({ role: 'user', content: text });
         trimHistory();
         for (let step = 0; step < MAX_STEPS && !cancelled; step++) {
           const res = await window.core.browser.llm({
-            messages: [{ role: 'system', content: systemPrompt() }, ...history],
+            messages: [{ role: 'system', content: systemPrompt() }, ...turns],
             tools: TOOLS,
             tool_choice: 'auto',
             max_tokens: 1200,
-            usage: { include: true },
           });
           if (res.error || res.status >= 400) {
             let detail = res.error;
@@ -856,24 +992,16 @@
           }
           let message;
           try {
-            const body = JSON.parse(res.body);
-            message = body.choices[0].message;
-            if (body.usage) {
-              totalTokens += body.usage.total_tokens || 0;
-              totalCost += typeof body.usage.cost === 'number' ? body.usage.cost : 0;
-              renderCost();
-            }
+            message = JSON.parse(res.body).choices[0].message;
           } catch (e) {
             say('err', window.i18n.t('Unerwartete Antwort vom Modell'));
             return;
           }
-          history.push({ role: 'assistant', content: message.content || '', tool_calls: message.tool_calls });
+          turns.push({ role: 'assistant', content: message.content || '', tool_calls: message.tool_calls });
           if (!message.tool_calls || !message.tool_calls.length) {
             const answer = (message.content || '').trim() || '(…)';
             say('bot', answer);
-            if (speak || spoken || drivingNow) {
-              device.speak(answer);
-            }
+            speakOut(answer);
             return;
           }
           if (message.content) {
@@ -892,75 +1020,93 @@
             } catch (e) {
               result = { error: String(e && e.message ? e.message : e) };
             }
-            history.push({ role: 'tool', tool_call_id: call.id, content: truncate(result) });
+            turns.push({ role: 'tool', tool_call_id: call.id, content: truncate(result) });
           }
         }
         say('note', cancelled ? L().cancelled : L().steps_limit);
       }
 
-      async function submit(text, spoken) {
+      async function submit(text) {
         if (!assistantState.hasKey) {
-          showPairing();
+          say('err', L().noKey);
           return;
         }
         say('user', text);
         busy = true;
         cancelled = false;
-        renderTexts();
+        setState('think');
         try {
-          await ask(text, spoken);
+          await ask(text);
         } finally {
           busy = false;
-          renderTexts();
+          if (root.dataset.state === 'think') {
+            setState('idle');
+          }
         }
       }
 
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (busy) {
-          cancelled = true;
+      async function listen() {
+        if (!assistantState.hasKey) {
+          say('err', L().noKey);
           return;
         }
-        const text = input.value.trim();
-        if (text) {
-          input.value = '';
-          input.blur();
-          submit(text, false);
-        }
-      });
-
-      mic.addEventListener('click', async () => {
-        if (mic.classList.contains('live')) {
-          device.stopListening();
-          return;
-        }
-        if (busy) {
-          cancelled = true;
-          return;
-        }
-        mic.classList.add('live');
+        listening = true;
+        setState('listen');
         const result = await window.core.browser.listen(L().tag);
-        mic.classList.remove('live');
+        listening = false;
+        setState('idle');
         if (result.error) {
           say('err', result.error);
         } else if (result.text) {
-          submit(result.text, true);
+          submit(result.text);
+        }
+      }
+
+      // a tap on the dot listens, ends the listening early, or stops a running answer
+      orb.addEventListener('click', () => {
+        if (busy) {
+          cancelled = true;
+        } else if (listening) {
+          device.stopListening();
+        } else {
+          listen();
         }
       });
 
+      function start(view, text) {
+        if (view === 'pair') {
+          showPairing();
+        } else if (view === 'history') {
+          showHistory();
+        } else if (view === 'wake' && !busy && !listening) {
+          if (text) {
+            submit(text);
+          } else {
+            chime();
+            listen();
+          }
+        }
+      }
+
       renderTexts();
       setLayout('window');
-      if (!assistantState.hasKey) {
+      active = { start };
+      if (pending) {
+        const next = pending;
+        pending = null;
+        start(next.view, next.text);
+      } else if (!assistantState.hasKey) {
         showPairing();
-      } else {
-        say('note', L().ready(assistantState.model));
       }
 
       return () => {
+        active = null;
         cancelled = true;
         clearInterval(pollTimer);
         clearInterval(drivingTimer);
-        device.cancelListening ? device.cancelListening() : device.stopListening();
+        clearTimeout(captionTimer);
+        clearTimeout(speakTimer);
+        device.cancelListening();
         offEvent();
         pane.destroy();
         appWindow.classList.remove('as-split', 'as-full');
