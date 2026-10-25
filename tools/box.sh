@@ -41,7 +41,8 @@ case "${1:-}" in
     adb pair "$2" "$3"
     ;;
   connect)
-    echo "Connected to $(box)"
+    S=$(box) || exit 1
+    echo "Connected to $S"
     ;;
   install)
     JAVA_HOME="${JAVA_HOME:-$( [ -d /opt/homebrew/opt/openjdk@17 ] && echo /opt/homebrew/opt/openjdk@17 )}" ./gradlew -q assembleRelease

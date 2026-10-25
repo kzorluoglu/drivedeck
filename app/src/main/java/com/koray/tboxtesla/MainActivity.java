@@ -115,6 +115,16 @@ public class MainActivity extends Activity {
         usage = new Usage(this);
         microphone = new Microphone(this, secrets);
         loadTalkKey();
+        // wireless debugging back on whenever a Wi-Fi comes up, Android switches it off on every change
+        WirelessDebug.enable(this);
+        ((android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE)).registerNetworkCallback(
+                new android.net.NetworkRequest.Builder().addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI).build(),
+                new android.net.ConnectivityManager.NetworkCallback() {
+                    @Override
+                    public void onAvailable(android.net.Network network) {
+                        web.postDelayed(() -> WirelessDebug.enable(MainActivity.this), 3000);
+                    }
+                });
         tiles = new TileCache(this);
         pairing = new PairingServer(this, secrets, usage, microphone, new PairingServer.Listener() {
             @Override
