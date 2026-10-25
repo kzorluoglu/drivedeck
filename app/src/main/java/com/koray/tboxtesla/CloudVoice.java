@@ -46,10 +46,17 @@ class CloudVoice {
         void heard(String text);
     }
 
+    interface ErrorCallback {
+        void failed(String message);
+    }
+
     private static final String BASE = "https://openrouter.ai/api/v1/audio/";
     static final String STT_MODEL = "openai/gpt-4o-mini-transcribe";
-    static final String TTS_MODEL = "openai/gpt-4o-mini-tts-2025-12-15";
-    static final String TTS_VOICE = "alloy";
+    // any model of https://openrouter.ai/api/v1/models?output_modalities=speech, chosen on the phone page
+    static final String DEFAULT_TTS_MODEL = "google/gemini-3.8-flash-tts";
+    static final String DEFAULT_TTS_VOICE = "Kore";
+    // raw PCM of the speech endpoint: 24 kHz, 16 bit, mono
+    private static final int TTS_RATE = 24000;
 
     private static final int RATE = 16000;
     private static final int CHUNK = RATE / 10;
@@ -206,11 +213,11 @@ class CloudVoice {
         return spoke && !cancel ? out.toByteArray() : null;
     }
 
-    private static byte[] wav(byte[] pcm) {
+    private static byte[] wav(byte[] pcm, int rate) {
         ByteBuffer header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
         header.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + pcm.length)
                 .put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16).putShort((short) 1).putShort((short) 1)
-                .putInt(RATE).putInt(RATE * 2).putShort((short) 2).putShort((short) 16)
+                .putInt(rate).putInt(rate * 2).putShort((short) 2).putShort((short) 16)
                 .put("data".getBytes(StandardCharsets.US_ASCII)).putInt(pcm.length);
         byte[] all = Arrays.copyOf(header.array(), 44 + pcm.length);
         System.arraycopy(pcm, 0, all, 44, pcm.length);
@@ -223,7 +230,7 @@ class CloudVoice {
             return "{\"error\":\"" + text(languageTag, "nokey") + "\"}";
         }
         JSONObject audio = new JSONObject()
-                .put("data", Base64.encodeToString(wav(pcm), Base64.NO_WRAP))
+                .put("data", Base64.encodeToString(wav(pcm, RATE), Base64.NO_WRAP))
                 .put("format", "wav");
         JSONObject request = new JSONObject()
                 .put("model", STT_MODEL)
@@ -381,10 +388,10 @@ class CloudVoice {
     // Text to speech
 
     /**
-     * Speaks the text. A newer call replaces the one before. If the service cannot be reached, fallback runs
-     * on the main thread, so the system voice can take over.
+     * Speaks the text through OpenRouter. A newer call replaces the one before. There is no local voice:
+     * when OpenRouter fails, onError gets the reason on the main thread and nothing is spoken.
      */
-    void speak(String text, String languageTag, Runnable fallback) {
+    void speak(String text, String languageTag, ErrorCallback onError) {
         int token = ++speakToken;
         stopSpeaking(false);
         new Thread(() -> {
@@ -392,18 +399,22 @@ class CloudVoice {
                 File file = audioFor(text, languageTag);
                 main.post(() -> {
                     if (token == speakToken) {
-                        play(file, fallback);
+                        play(file, onError);
                     }
                 });
             } catch (Exception e) {
-                Log.w("CloudVoice", "speech failed, using the system voice: " + e.getMessage());
-                main.post(() -> {
-                    if (token == speakToken) {
-                        fallback.run();
-                    }
-                });
+                Log.w("CloudVoice", "speech failed: " + e.getMessage());
+                main.post(() -> onError.failed(String.valueOf(e.getMessage())));
             }
         }, "tts").start();
+    }
+
+    /** Model and voice for the speech output, as set on the phone page. */
+    String[] ttsChoice() {
+        JSONObject data = secrets.load();
+        String model = data.optString("ttsModel", "").trim();
+        String voice = data.optString("ttsVoice", "").trim();
+        return new String[] {model.isEmpty() ? DEFAULT_TTS_MODEL : model, voice.isEmpty() ? DEFAULT_TTS_VOICE : voice};
     }
 
     void stopSpeaking(boolean invalidate) {
@@ -422,7 +433,7 @@ class CloudVoice {
         }
     }
 
-    private void play(File file, Runnable fallback) {
+    private void play(File file, ErrorCallback onError) {
         try {
             stopSpeaking(false);
             MediaPlayer next = new MediaPlayer();
@@ -443,14 +454,14 @@ class CloudVoice {
                     player = null;
                     quietUntil = System.currentTimeMillis() + AFTER_SPEECH_MS;
                 }
-                fallback.run();
+                onError.failed("Wiedergabe fehlgeschlagen (" + what + ")");
                 return true;
             });
             next.prepare();
             player = next;
             next.start();
         } catch (Exception e) {
-            fallback.run();
+            onError.failed("Wiedergabe fehlgeschlagen: " + e.getMessage());
         }
     }
 
@@ -459,16 +470,21 @@ class CloudVoice {
         if (key.isEmpty()) {
             throw new IOException("no key");
         }
-        File file = new File(cache, sha1(TTS_MODEL + TTS_VOICE + languageTag + text) + ".mp3");
-        if (file.exists() && file.length() > 0) {
-            file.setLastModified(System.currentTimeMillis());
-            return file;
+        String[] choice = ttsChoice();
+        String name = sha1(choice[0] + choice[1] + languageTag + text);
+        for (String ext : new String[] {".wav", ".mp3"}) {
+            File cached = new File(cache, name + ext);
+            if (cached.exists() && cached.length() > 0) {
+                cached.setLastModified(System.currentTimeMillis());
+                return cached;
+            }
         }
+        // PCM is the format every provider can deliver (Gemini only that), MiniMax answers with MP3 anyway
         JSONObject request = new JSONObject()
-                .put("model", TTS_MODEL)
+                .put("model", choice[0])
                 .put("input", text)
-                .put("voice", TTS_VOICE)
-                .put("response_format", "mp3")
+                .put("voice", choice[1])
+                .put("response_format", "pcm")
                 .put("instructions", "Speak " + languageName(languageTag)
                         + " clearly and naturally, calm and friendly, like a good car assistant.");
         HttpURLConnection http = open("speech", key, 15000);
@@ -479,15 +495,26 @@ class CloudVoice {
         if (status >= 400) {
             throw new IOException("OpenRouter " + status + ": " + shorten(readAll(http.getErrorStream())));
         }
-        File part = new File(cache, file.getName() + ".part");
-        try (InputStream in = http.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
+        boolean mp3 = String.valueOf(http.getContentType()).contains("mpeg");
+        byte[] audio;
+        try (InputStream in = http.getInputStream()) {
+            ByteArrayOutputStream all = new ByteArrayOutputStream();
             byte[] buffer = new byte[8192];
             int read;
             while ((read = in.read(buffer)) > 0) {
-                out.write(buffer, 0, read);
+                all.write(buffer, 0, read);
             }
+            audio = all.toByteArray();
         }
-        if (part.length() == 0 || !part.renameTo(file)) {
+        if (audio.length == 0) {
+            throw new IOException("leere Antwort");
+        }
+        File file = new File(cache, name + (mp3 ? ".mp3" : ".wav"));
+        File part = new File(cache, file.getName() + ".part");
+        try (FileOutputStream out = new FileOutputStream(part)) {
+            out.write(mp3 ? audio : wav(audio, TTS_RATE));
+        }
+        if (!part.renameTo(file)) {
             part.delete();
             throw new IOException("empty audio");
         }

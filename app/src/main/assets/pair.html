@@ -29,6 +29,11 @@
   .stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; word-break: break-all; }
   .addr { margin: 0 0 18px; padding: 10px 12px; border-radius: 10px; background: #1d2540; font-size: 14px; }
   .addr b { user-select: all; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .head button { padding: 6px 12px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chips button { padding: 6px 10px; font-size: 14px; border: 1px solid #2b2c31; background: #18191c; }
+  .chips button.on { border-color: #3e6ae1; background: #1d2540; }
 </style>
 </head>
 <body>
@@ -59,7 +64,17 @@
 <label for="model">Modell</label>
 <input id="model" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
 <small>Antippen zum Wählen. Preise pro 1 Mio. Tokens (Eingabe / Ausgabe), live von OpenRouter. Nur Modelle mit Werkzeugen, ohne die der Assistent nicht arbeiten kann. Rang nach Artificial Analysis Intelligence Index.</small>
+<div class="head"><span></span><button id="refreshModels" type="button">↻ Aktualisieren</button></div>
 <div id="models"><small>Lade Modelle ...</small></div>
+
+<label for="ttsModel">Stimme (Modell)</label>
+<input id="ttsModel" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+<label for="ttsVoice">Stimme (Sprecher)</label>
+<input id="ttsVoice" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+<div class="chips" id="voices"></div>
+<small>Alle Sprachmodelle von OpenRouter, günstigste zuerst. Preis pro 1 Mio. Zeichen, bei Gemini pro 1 Mio. Tokens (Eingabe / Ausgabe).</small>
+<div class="head"><span></span><button id="refreshVoices" type="button">↻ Aktualisieren</button></div>
+<div id="ttsModels"><small>Lade Modelle ...</small></div>
 
 <h2 style="font-size:17px;margin:26px 0 0">Anmeldungen für den Browser</h2>
 <p class="hint">z. B. Google (google.com). Das Passwort bekommt die KI nie zu sehen, es wird nur in die Seite eingetragen. Google blockiert Anmeldungen in eingebetteten Browsern gelegentlich.</p>
@@ -148,6 +163,13 @@
     "Es ist schon ein Schlüssel gespeichert.": ["Zaten bir anahtar kayıtlı.", "A key is already saved."],
     "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
     "Kontext": ["bağlam", "context"],
+    "↻ Aktualisieren": ["↻ Yenile", "↻ Refresh"],
+    "Stimme (Modell)": ["Ses (model)", "Voice (model)"],
+    "Stimme (Sprecher)": ["Ses (konuşmacı)", "Voice (speaker)"],
+    "Alle Sprachmodelle von OpenRouter, günstigste zuerst. Preis pro 1 Mio. Zeichen, bei Gemini pro 1 Mio. Tokens (Eingabe / Ausgabe).": ["OpenRouter'daki tüm ses modelleri, en ucuzu önce. Fiyat 1 milyon karakter başına, Gemini'de 1 milyon token başına (giriş / çıkış).", "All speech models on OpenRouter, cheapest first. Price per 1M characters, for Gemini per 1M tokens (input / output)."],
+    "pro 1 Mio. Tokens": ["/ 1M token", "per 1M tokens"],
+    "pro 1 Mio. Zeichen": ["/ 1M karakter", "per 1M characters"],
+    "Stimmen": ["ses", "voices"],
   };
   const T = (text) => (LANG === 'de' || !TABLE[text] ? text : TABLE[text][LANG === 'tr' ? 0 : 1]);
   document.documentElement.lang = LANG;
@@ -233,7 +255,7 @@
       rows.push([T('seit'), new Date(u.since).toLocaleDateString(LANG)]);
     }
     rows.push([T('Erkennung'), state.stt]);
-    rows.push([T('Stimme'), state.tts]);
+    rows.push([T('Stimme'), `${state.ttsModel} (${state.ttsVoice})`]);
     $('stats').innerHTML = '';
     rows.forEach(([k, v]) => {
       const dt = document.createElement('dt');
@@ -296,8 +318,12 @@
   const score = (m) => (m.benchmarks && m.benchmarks.artificial_analysis && m.benchmarks.artificial_analysis.intelligence_index) || 0;
 
   function markSelected() {
-    document.querySelectorAll('.m').forEach((b) => b.classList.toggle('on', b.dataset.id === $('model').value.trim()));
+    document.querySelectorAll('#models .m').forEach((b) => b.classList.toggle('on', b.dataset.id === $('model').value.trim()));
+    document.querySelectorAll('#ttsModels .m').forEach((b) => b.classList.toggle('on', b.dataset.id === $('ttsModel').value.trim()));
+    document.querySelectorAll('#voices button').forEach((b) => b.classList.toggle('on', b.textContent === $('ttsVoice').value.trim()));
   }
+  $('ttsModel').addEventListener('input', () => { markSelected(); renderVoices(); });
+  $('ttsVoice').addEventListener('input', markSelected);
   $('model').addEventListener('input', markSelected);
 
   function renderGroup(title, models) {
@@ -328,7 +354,9 @@
     return group;
   }
 
-  fetch('https://openrouter.ai/api/v1/models').then((r) => r.json()).then(({ data }) => {
+  function loadChatModels() {
+    $('models').innerHTML = '<small>' + T('Lade Modelle ...') + '</small>';
+    fetch('https://openrouter.ai/api/v1/models', { cache: 'no-store' }).then((r) => r.json()).then(({ data }) => {
     const usable = data.filter((m) => (m.supported_parameters || []).includes('tools')
       && !m.id.startsWith('~') && !m.id.endsWith(':batch') && !m.id.endsWith(':nitro') && !m.id.endsWith(':floor'));
     const isFree = (m) => perMillion(m.pricing.prompt) === 0 && perMillion(m.pricing.completion) === 0;
@@ -338,9 +366,85 @@
     $('models').innerHTML = '';
     $('models').append(renderGroup(T('Top 10 (bezahlt)'), top), renderGroup(T('Top 10 gratis'), free));
     markSelected();
-  }).catch(() => {
-    $('models').innerHTML = '<small>' + T('Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.') + '</small>';
-  });
+    }).catch(() => {
+      $('models').innerHTML = '<small>' + T('Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.') + '</small>';
+    });
+  }
+  $('refreshModels').onclick = loadChatModels;
+  loadChatModels();
+
+  // Speech models: every model OpenRouter offers for text to speech, with its voices. Most are priced
+  // per character (prompt), Gemini per token for text in and audio out.
+  let speechModels = [];
+
+  function speechPrice(m) {
+    const input = perMillion(m.pricing.prompt);
+    const output = perMillion(m.pricing.completion);
+    if (input === 0 && output === 0) {
+      return T('gratis');
+    }
+    return output > 0 ? `${money(input)} / ${money(output)} ${T('pro 1 Mio. Tokens')}` : `${money(input)} ${T('pro 1 Mio. Zeichen')}`;
+  }
+
+  // costs of an average answer of 200 characters, to sort token and character prices together
+  const answerCost = (m) => perMillion(m.pricing.prompt) * 200 + perMillion(m.pricing.completion) * 200 * 6;
+
+  function renderVoices() {
+    const model = speechModels.find((m) => m.id === $('ttsModel').value.trim());
+    const all = (model && model.supported_voices) || [];
+    // Azure voices are per language (de-DE-Harper:...), only the ones of the app language are shown
+    const tag = { de: 'de-DE', tr: 'tr-TR', en: 'en-US' }[LANG];
+    const own = all.filter((v) => v.startsWith(tag));
+    const voices = (own.length ? own : all).slice(0, 40);
+    $('voices').innerHTML = '';
+    voices.forEach((v) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v;
+      b.onclick = () => { $('ttsVoice').value = v; markSelected(); };
+      $('voices').appendChild(b);
+    });
+    markSelected();
+  }
+
+  function loadSpeechModels() {
+    $('ttsModels').innerHTML = '<small>' + T('Lade Modelle ...') + '</small>';
+    fetch('https://openrouter.ai/api/v1/models?output_modalities=speech', { cache: 'no-store' }).then((r) => r.json()).then(({ data }) => {
+      speechModels = data.filter((m) => !m.id.startsWith('~')).sort((a, b) => answerCost(a) - answerCost(b));
+      $('ttsModels').innerHTML = '';
+      speechModels.forEach((m) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'm';
+        b.dataset.id = m.id;
+        const name = document.createElement('b');
+        name.textContent = m.name.replace(/^[^:]+:\s*/, '');
+        const meta = document.createElement('span');
+        meta.textContent = m.id;
+        const info = document.createElement('span');
+        const price = speechPrice(m);
+        info.className = price === T('gratis') ? 'free' : '';
+        info.textContent = ` · ${price}${m.supported_voices ? ` · ${m.supported_voices.length} ${T('Stimmen')}` : ''}`;
+        b.append(name, meta, info);
+        b.onclick = () => {
+          $('ttsModel').value = m.id;
+          // a voice of another model does not exist here, the first one of the new model is a safe start
+          const voices = m.supported_voices || [];
+          if (voices.length && !voices.includes($('ttsVoice').value.trim())) {
+            const tag = { de: 'de-DE', tr: 'tr-TR', en: 'en-US' }[LANG];
+            $('ttsVoice').value = voices.find((v) => v.startsWith(tag)) || voices[0];
+          }
+          renderVoices();
+        };
+        $('ttsModels').appendChild(b);
+      });
+      renderVoices();
+    }).catch(() => {
+      $('ttsModels').innerHTML = '<small>' + T('Modellliste nicht erreichbar. Du kannst die Modell-ID oben selbst eintragen.') + '</small>';
+    });
+  }
+  $('refreshVoices').onclick = loadSpeechModels;
+  loadSpeechModels();
 
   let loaded = false;
   function loadState() {
@@ -351,7 +455,9 @@
       }
       loaded = true;
       $('model').value = state.model;
-      markSelected();
+      $('ttsModel').value = state.ttsModel || '';
+      $('ttsVoice').value = state.ttsVoice || '';
+      renderVoices();
       if (state.hasKey) {
         $('key').placeholder = T('unverändert');
         $('keyNote').textContent = T('Es ist schon ein Schlüssel gespeichert.');
@@ -372,7 +478,7 @@
     $('msg').className = '';
     $('msg').textContent = T('Sende ...');
     try {
-      await post('save', { openrouterKey: $('key').value, model: $('model').value, logins });
+      await post('save', { openrouterKey: $('key').value, model: $('model').value, ttsModel: $('ttsModel').value, ttsVoice: $('ttsVoice').value, logins });
       $('msg').className = 'ok';
       $('msg').textContent = T('Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.');
       loadState();

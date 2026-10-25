@@ -267,7 +267,9 @@ class PairingServer {
         }
         state.put("usage", usage.toJson());
         state.put("stt", CloudVoice.STT_MODEL);
-        state.put("tts", CloudVoice.TTS_MODEL + " (" + CloudVoice.TTS_VOICE + ")");
+        JSONObject data = store.load();
+        state.put("ttsModel", data.optString("ttsModel", CloudVoice.DEFAULT_TTS_MODEL));
+        state.put("ttsVoice", data.optString("ttsVoice", CloudVoice.DEFAULT_TTS_VOICE));
         state.put("host", MdnsResponder.HOST + ":" + PORT);
         state.put("ip", localAddress() + ":" + PORT);
         return state;
@@ -318,6 +320,10 @@ class PairingServer {
         }
         String model = input.optString("model", "").trim();
         data.put("model", model.isEmpty() ? SecretStore.DEFAULT_MODEL : model);
+        String ttsModel = input.optString("ttsModel", "").trim();
+        data.put("ttsModel", ttsModel.isEmpty() ? CloudVoice.DEFAULT_TTS_MODEL : ttsModel);
+        String ttsVoice = input.optString("ttsVoice", "").trim();
+        data.put("ttsVoice", ttsVoice.isEmpty() ? CloudVoice.DEFAULT_TTS_VOICE : ttsVoice);
 
         JSONArray previous = data.optJSONArray("logins");
         JSONArray merged = new JSONArray();

@@ -35,6 +35,7 @@
     ['Sprache', 'Dil', 'Language'],
     ['„DriveDeck“ hören', '„DriveDeck“ dinle', 'Listen for "DriveDeck"'],
     ['Verlauf', 'Geçmiş', 'History'],
+    ['Stimme: {0}', 'Ses: {0}', 'Voice: {0}'],
     ['Koppeln', 'Eşleştir', 'Pair'],
     ['Handy', 'Telefon', 'Phone'],
     ['Einführung', 'Tanıtım', 'Intro tour'],

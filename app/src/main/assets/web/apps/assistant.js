@@ -293,7 +293,14 @@
     },
   };
 
+  // There is no local voice, so a failing OpenRouter voice is shown instead of staying silent
+  let lastVoiceError = 0;
+
   window.core.onEvent((e) => {
+    if (e.event === 'voiceError' && Date.now() - lastVoiceError > 30000) {
+      lastVoiceError = Date.now();
+      toast(window.i18n.t('Stimme: {0}', String(e.message || '').slice(0, 140)));
+    }
     if (e.event !== 'heard') {
       return;
     }

@@ -13,7 +13,6 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
-import android.speech.tts.TextToSpeech;
 import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -35,7 +34,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 /**
  * Hosts the web based dashboard from assets/web in a full screen WebView.
@@ -362,26 +360,17 @@ public class MainActivity extends Activity {
     /**
      * Exposed to JavaScript as window.TBox, gives the page access to real device state.
      */
-    private class DeviceBridge implements TextToSpeech.OnInitListener {
+    private class DeviceBridge {
         private final Context context;
         private final AudioManager audio;
-        private final TextToSpeech tts;
         private final CloudVoice cloud;
-        // speech goes through OpenRouter, the system voice only speaks without a key or when OpenRouter cannot be reached
+        // speech in and out goes through OpenRouter only, the services of Android are not used
         private String speechTag = "de-DE";
 
         DeviceBridge(Context context) {
             this.context = context;
             cloud = new CloudVoice(context, secrets, usage);
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            tts = new TextToSpeech(context, this);
-        }
-
-        @Override
-        public void onInit(int status) {
-            if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(Locale.GERMAN);
-            }
         }
 
         void holdWake(boolean hold) {
@@ -391,7 +380,6 @@ public class MainActivity extends Activity {
         void shutdown() {
             cloud.stopWake();
             cloud.stopSpeaking(true);
-            tts.shutdown();
         }
 
         /**
@@ -561,7 +549,6 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setSpeechLanguage(String tag) {
             speechTag = tag;
-            tts.setLanguage(Locale.forLanguageTag(tag));
         }
 
         /**
@@ -701,12 +688,26 @@ public class MainActivity extends Activity {
             }, "update-install").start();
         }
 
+        /**
+         * Speaks through OpenRouter only, there is no local voice. Failures arrive as event {event:"voiceError", message}.
+         */
         @JavascriptInterface
         public void speak(String text) {
-            if (cloud.available()) {
-                cloud.speak(text, speechTag, () -> tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav"));
-            } else {
-                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav");
+            if (text == null || text.trim().isEmpty()) {
+                return;
+            }
+            if (!cloud.available()) {
+                voiceError(CloudVoice.text(speechTag, "nokey"));
+                return;
+            }
+            cloud.speak(text, speechTag, this::voiceError);
+        }
+
+        private void voiceError(String message) {
+            try {
+                callPage(0, new JSONObject().put("event", "voiceError").put("message", message).toString());
+            } catch (Exception e) {
+                // nothing to report then
             }
         }
 
