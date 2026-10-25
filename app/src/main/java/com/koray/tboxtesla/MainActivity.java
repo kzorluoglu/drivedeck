@@ -28,7 +28,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -59,6 +58,8 @@ public class MainActivity extends Activity {
     private MdnsResponder mdns;
     private Usage usage;
     private Microphone microphone;
+    // Android hands silence to the microphone of an app that is not in the foreground
+    private volatile boolean resumed;
     private TileCache tiles;
     private final ObdClient obd = new ObdClient();
     private int listenId;
@@ -124,11 +125,11 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public JSONArray onMicTest() throws Exception {
+            public JSONObject onMicTest() throws Exception {
                 // the car shows that it listens, the driver should talk during the test
                 callPage(0, "{\"event\":\"micTest\",\"on\":true}");
                 try {
-                    return bridge.cloud.testMicrophone();
+                    return bridge.cloud.testMicrophone(resumed);
                 } finally {
                     callPage(0, "{\"event\":\"micTest\",\"on\":false}");
                 }
@@ -401,12 +402,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         web.onResume();
     }
 
     @Override
     protected void onPause() {
         // other apps (phone calls, CarPlay) get the microphone back while DriveDeck is in the background
+        resumed = false;
         bridge.cancelListening();
         web.onPause();
         super.onPause();

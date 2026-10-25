@@ -46,8 +46,8 @@ class PairingServer {
 
         void onUnpair();
 
-        /** Measures the microphones while the driver talks, see Microphone.test. */
-        JSONArray onMicTest() throws Exception;
+        /** Measures the microphones while the driver talks: {results, system}, see CloudVoice.testMicrophone. */
+        JSONObject onMicTest() throws Exception;
     }
 
     static final int PORT = 8765;
@@ -243,11 +243,11 @@ class PairingServer {
         } else if (method.equals("GET") && action.equals("state")) {
             respond(out, 200, "application/json", encrypt(key, state().toString()).toString());
         } else if (method.equals("POST") && action.equals("mic-test")) {
-            JSONObject answer = new JSONObject();
+            JSONObject answer;
             try {
-                answer.put("results", listener.onMicTest());
+                answer = listener.onMicTest();
             } catch (Exception e) {
-                answer.put("error", String.valueOf(e.getMessage()));
+                answer = new JSONObject().put("error", String.valueOf(e.getMessage()));
             }
             respond(out, 200, "application/json", encrypt(key, answer.toString()).toString());
         } else if (method.equals("POST") && action.equals("unpair")) {

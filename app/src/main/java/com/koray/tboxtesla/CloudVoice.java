@@ -252,8 +252,11 @@ class CloudVoice {
                 : "{\"text\":" + JSONObject.quote(spoken) + "}";
     }
 
-    /** Measures every input for the phone page (see Microphone.test), while nothing else records. */
-    JSONArray testMicrophone() throws Exception {
+    /**
+     * Measures every input for the phone page (see Microphone.test), while nothing else records here.
+     * Answers {results, system}, the second says who else records and whether Android silences this app.
+     */
+    JSONObject testMicrophone(boolean foreground) throws Exception {
         if (!microphone.allowed()) {
             throw new IllegalStateException("Mikrofon nicht erlaubt, einmal im Auto die Spracheingabe starten");
         }
@@ -261,7 +264,9 @@ class CloudVoice {
             throw new IllegalStateException("Mikrofon belegt");
         }
         try {
-            return microphone.test(1500);
+            JSONObject before = microphone.system(foreground);
+            JSONArray results = microphone.test(700);
+            return new JSONObject().put("results", results).put("system", before);
         } finally {
             mic.release();
         }

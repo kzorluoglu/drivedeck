@@ -3,10 +3,12 @@ package com.koray.tboxtesla;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.AudioRecordingConfiguration;
 import android.media.MediaRecorder;
 
 import org.json.JSONArray;
@@ -23,7 +25,9 @@ class Microphone {
     static final String MIC = "mic";
     static final String RECOGNITION = "recognition";
     static final String CALL = "call";
-    private static final String[] SOURCES = {MIC, RECOGNITION, CALL};
+    static final String RAW = "raw";
+    static final String CAMCORDER = "camcorder";
+    private static final String[] SOURCES = {MIC, RECOGNITION, CALL, RAW, CAMCORDER};
 
     private final Context context;
     private final SecretStore store;
@@ -49,6 +53,8 @@ class Microphone {
     private AudioRecord open(int rate, int bufferBytes, int deviceId, String source) {
         int kind = source.equals(CALL) ? MediaRecorder.AudioSource.VOICE_COMMUNICATION
                 : source.equals(RECOGNITION) ? MediaRecorder.AudioSource.VOICE_RECOGNITION
+                : source.equals(RAW) ? MediaRecorder.AudioSource.UNPROCESSED
+                : source.equals(CAMCORDER) ? MediaRecorder.AudioSource.CAMCORDER
                 : MediaRecorder.AudioSource.MIC;
         if (source.equals(CALL)) {
             previousMode = audio.getMode();
@@ -146,55 +152,94 @@ class Microphone {
     }
 
     /**
-     * Records every input with every way of recording for a moment while the driver talks, and returns the
-     * levels: [{device, name, source, peak, mean} or {..., error}]. The loudest one is the right microphone.
+     * Records every input with every way of recording (and at 16 and 48 kHz) for a moment while the driver
+     * talks, and returns the levels: [{device, name, source, rate, peak, mean, zero, routed} or {..., error}].
+     * The loudest one is the right microphone. "zero" means every sample was exactly 0: Android hands this
+     * app silence on purpose (another app holds the microphone, or this one is not in the foreground).
      */
     JSONArray test(long eachMs) {
         JSONArray results = new JSONArray();
         JSONArray devices = inputs();
-        int rate = 16000;
-        short[] chunk = new short[rate / 10];
         for (int d = 0; d < devices.length(); d++) {
             JSONObject device = devices.optJSONObject(d);
             for (String source : SOURCES) {
-                JSONObject row = new JSONObject();
-                try {
-                    row.put("device", device.optInt("id")).put("name", device.optString("name")).put("source", source);
-                    AudioRecord recorder = open(rate, chunk.length * 8, device.optInt("id"), source);
-                    double peak = 0;
-                    double total = 0;
-                    int chunks = 0;
-                    try {
-                        recorder.startRecording();
-                        long end = System.currentTimeMillis() + eachMs;
-                        while (System.currentTimeMillis() < end) {
-                            int read = recorder.read(chunk, 0, chunk.length);
-                            if (read <= 0) {
-                                break;
-                            }
-                            double sum = 0;
-                            for (int i = 0; i < read; i++) {
-                                sum += (double) chunk[i] * chunk[i];
-                            }
-                            double rms = Math.sqrt(sum / read);
-                            peak = Math.max(peak, rms);
-                            total += rms;
-                            chunks++;
-                        }
-                    } finally {
-                        close(recorder);
-                    }
-                    row.put("peak", Math.round(peak)).put("mean", chunks == 0 ? 0 : Math.round(total / chunks));
-                } catch (Exception e) {
-                    try {
-                        row.put("error", String.valueOf(e.getMessage()));
-                    } catch (Exception ignored) {
-                        // the row stays without it
-                    }
+                for (int rate : new int[] {16000, 48000}) {
+                    results.put(measure(device, source, rate, eachMs));
                 }
-                results.put(row);
             }
         }
         return results;
+    }
+
+    private JSONObject measure(JSONObject device, String source, int rate, long eachMs) {
+        JSONObject row = new JSONObject();
+        short[] chunk = new short[rate / 10];
+        try {
+            row.put("device", device.optInt("id")).put("name", device.optString("name")).put("source", source).put("rate", rate);
+            AudioRecord recorder = open(rate, chunk.length * 8, device.optInt("id"), source);
+            double peak = 0;
+            double total = 0;
+            int chunks = 0;
+            boolean zero = true;
+            try {
+                recorder.startRecording();
+                long end = System.currentTimeMillis() + eachMs;
+                while (System.currentTimeMillis() < end) {
+                    int read = recorder.read(chunk, 0, chunk.length);
+                    if (read <= 0) {
+                        row.put("error", "read " + read);
+                        break;
+                    }
+                    double sum = 0;
+                    for (int i = 0; i < read; i++) {
+                        sum += (double) chunk[i] * chunk[i];
+                        zero &= chunk[i] == 0;
+                    }
+                    double rms = Math.sqrt(sum / read);
+                    peak = Math.max(peak, rms);
+                    total += rms;
+                    chunks++;
+                }
+                AudioDeviceInfo routed = recorder.getRoutedDevice();
+                row.put("routed", routed == null ? "" : describe(routed));
+            } finally {
+                close(recorder);
+            }
+            row.put("peak", Math.round(peak)).put("mean", chunks == 0 ? 0 : Math.round(total / chunks)).put("zero", zero && chunks > 0);
+        } catch (Exception e) {
+            try {
+                row.put("error", String.valueOf(e.getMessage()));
+            } catch (Exception ignored) {
+                // the row stays without it
+            }
+        }
+        return row;
+    }
+
+    /** Android version, and who else records right now (and whether Android silences this app). */
+    JSONObject system(boolean foreground) {
+        JSONObject info = new JSONObject();
+        try {
+            info.put("android", Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
+            info.put("device", Build.MANUFACTURER + " " + Build.MODEL);
+            info.put("foreground", foreground);
+            info.put("allowed", allowed());
+            info.put("micMuted", audio.isMicrophoneMute());
+            info.put("mode", audio.getMode());
+            JSONArray others = new JSONArray();
+            for (AudioRecordingConfiguration config : audio.getActiveRecordingConfigurations()) {
+                JSONObject other = new JSONObject().put("source", config.getClientAudioSource());
+                if (Build.VERSION.SDK_INT >= 29) {
+                    other.put("silenced", config.isClientSilenced());
+                }
+                AudioDeviceInfo device = config.getAudioDevice();
+                other.put("device", device == null ? "" : describe(device));
+                others.put(other);
+            }
+            info.put("recordings", others);
+        } catch (Exception e) {
+            // whatever was collected
+        }
+        return info;
     }
 }
