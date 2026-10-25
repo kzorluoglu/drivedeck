@@ -174,7 +174,8 @@
     {
       name: 'play_music',
       description:
-        'Spielt Musik oder ein Video über YouTube. Während der Fahrt oder mit background=true läuft nur der Ton, der Browser bleibt unsichtbar.',
+        'Spielt Musik oder ein Video über YouTube und zeigt den Player im Browser. Während der Fahrt läuft nur der Ton. ' +
+        'background=true nur, wenn der Fahrer ausdrücklich nur Ton ohne Bild will.',
       parameters: { query: { type: 'string' }, background: { type: 'boolean' } },
     },
     {
@@ -933,7 +934,7 @@
             ? 'Der Fahrer FÄHRT gerade: keine Browserwerkzeuge, keine langen Antworten. Nur Navigation, Notizen, Timer, Wetter, Musik, Lautstärke.'
             : 'Das Fahrzeug steht, alle Werkzeuge sind verfügbar.',
           'Navigation, Notizen, Timer und Wetter steuerst du mit den eigenen Werkzeugen, nicht über den Browser. Bei mehrdeutigen Zielen erst find_place und nachfragen.',
-          'Für Videos nutze youtube.com (m.youtube.com); "Vollbild" bedeutet set_layout full, "Navigation daneben" set_layout split.',
+          'Musik und Videos spielst du mit play_music, der Player ist dann sichtbar. Will der Fahrer nur YouTube öffnen, nutze open_url https://m.youtube.com. "Vollbild" bedeutet set_layout full, "Navigation daneben" set_layout split.',
           'Arbeite in kleinen Schritten und nenne am Ende das Ergebnis.',
           `Gespeicherte Anmeldungen: ${c.logins || 'keine'}. Passwörter kennst du nicht, nutze das Werkzeug login.`,
           `Gespeicherte Orte: ${c.places || 'keine'}.`,
@@ -949,7 +950,7 @@
             ? 'Sürücü ŞU AN SÜRÜYOR: tarayıcı araçları yok, uzun cevap yok. Sadece navigasyon, not, zamanlayıcı, hava durumu, müzik ve ses seviyesi.'
             : 'Araç duruyor, tüm araçlar kullanılabilir.',
           'Navigasyon, not, zamanlayıcı ve hava durumunu kendi araçlarınla yönet, tarayıcıyla değil. Hedef belirsizse önce find_place kullan ve sor.',
-          'Videolar için youtube.com (m.youtube.com) kullan; "tam ekran" set_layout full, "navigasyon yanında" set_layout split demektir.',
+          'Müzik ve videoları play_music ile çal, oynatıcı görünür olur. Sürücü sadece YouTube açmak isterse open_url https://m.youtube.com kullan. "Tam ekran" set_layout full, "navigasyon yanında" set_layout split demektir.',
           'Küçük adımlarla çalış ve sonunda sonucu söyle.',
           `Kayıtlı girişler: ${c.logins || 'yok'}. Şifreleri bilmezsin, login aracını kullan.`,
           `Kayıtlı yerler: ${c.places || 'yok'}.`,
@@ -965,7 +966,7 @@
             ? 'The driver is DRIVING right now: no browser tools, no long answers. Only navigation, notes, timers, weather, music, volume.'
             : 'The car is parked, all tools are available.',
           'Control navigation, notes, timers and weather with their own tools, not through the browser. For ambiguous destinations use find_place first and ask.',
-          'For videos use youtube.com (m.youtube.com); "full screen" means set_layout full, "navigation next to it" set_layout split.',
+          'Play music and videos with play_music, the player is then visible. If the driver only wants YouTube opened, use open_url https://m.youtube.com. "Full screen" means set_layout full, "navigation next to it" set_layout split.',
           'Work in small steps and state the result at the end.',
           `Saved logins: ${c.logins || 'none'}. You do not know passwords, use the login tool.`,
           `Saved places: ${c.places || 'none'}.`,

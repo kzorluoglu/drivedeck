@@ -99,26 +99,46 @@
       }
       return { paused: v.paused, muted: v.muted, time: Math.round(v.currentTime), duration: Math.round(v.duration || 0), title: document.title };
     },
-    // Leaves only the video player on the page, filling the whole browser (YouTube and the like).
+    // Leaves only the video player on the page, filling the whole browser (YouTube and the like),
+    // and turns the sound on, mobile YouTube starts muted.
     minimal: function () {
       var v = document.querySelector('video');
       if (!v) {
         return { error: 'Kein Video auf der Seite' };
       }
-      var box = v.closest('#player-container-id, .player-container, #player, .html5-video-player') || v.parentElement;
+      var box = v.closest('#movie_player, .html5-video-player') || v.parentElement;
       box.setAttribute('data-ai-player', '');
+      // everything next to the player and next to each of its parents goes away (header, comments, suggestions)
+      for (var el = box; el && el !== document.body; el = el.parentElement) {
+        Array.prototype.forEach.call(el.parentElement ? el.parentElement.children : [], function (sibling) {
+          if (sibling !== el && !/^(SCRIPT|STYLE|LINK)$/.test(sibling.tagName)) {
+            sibling.setAttribute('data-ai-hidden', '');
+          }
+        });
+      }
       var style = document.getElementById('__ai-minimal') || document.createElement('style');
       style.id = '__ai-minimal';
       style.textContent =
-        'html,body{overflow:hidden!important;background:#000!important}' +
-        '[data-ai-player]{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;' +
-        'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;transform:none!important;' +
-        'z-index:2147483647!important;background:#000!important}' +
-        '[data-ai-player] video{left:0!important;top:0!important;width:100%!important;height:100%!important;object-fit:contain!important}';
+        'html,body{overflow:hidden!important;background:#000!important;margin:0!important;padding:0!important}' +
+        '[data-ai-hidden]{display:none!important}' +
+        '[data-ai-player]{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;' +
+        'max-width:none!important;max-height:none!important;margin:0!important;transform:none!important;z-index:2147483647!important;background:#000!important}' +
+        '[data-ai-player] .html5-video-container{position:absolute!important;inset:0!important;width:100%!important;height:100%!important}' +
+        '[data-ai-player] video{position:absolute!important;left:0!important;top:0!important;width:100%!important;height:100%!important;object-fit:contain!important}';
       document.head.appendChild(style);
       window.scrollTo(0, 0);
       window.dispatchEvent(new Event('resize'));
-      return { ok: true };
+      if (typeof box.unMute === 'function') {
+        box.unMute();
+        if (typeof box.setVolume === 'function') {
+          box.setVolume(100);
+        }
+      }
+      v.muted = false;
+      if (v.paused) {
+        v.play();
+      }
+      return { ok: true, muted: v.muted, paused: v.paused };
     },
     // Fills the user name and, when the page already shows it, the password (Google asks in two steps).
     fill: function (user, pass) {
