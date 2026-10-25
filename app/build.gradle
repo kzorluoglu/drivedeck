@@ -10,8 +10,8 @@ android {
         applicationId 'com.koray.tboxtesla'
         minSdk 28
         targetSdk 33
-        versionCode 9
-        versionName '1.8'
+        versionCode 10
+        versionName '1.9'
     }
 
     // One fixed key for every build (local and CI), so a new APK installs over the old one and keeps
