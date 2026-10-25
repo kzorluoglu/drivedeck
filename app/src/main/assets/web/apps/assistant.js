@@ -224,18 +224,12 @@
       parameters: { app: { type: 'string', enum: ['browser', 'notes', 'obd', 'karaoke', 'paint', '2048', 'snake', 'history', 'pair'] } },
     },
     { name: 'close_app', description: 'Schließt die offene App oder den Browser, danach ist die Karte wieder ganz zu sehen.', parameters: {} },
-  ].map((t) => ({
-    type: 'function',
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: {
-        type: 'object',
-        properties: t.parameters,
-        required: Object.keys(t.parameters).filter((k) => !OPTIONAL.has(k) && !(t.name === 'save_place' && k === 'query')),
-      },
-    },
-  }));
+  ].map((t) => {
+    const required = Object.keys(t.parameters).filter((k) => !OPTIONAL.has(k) && !(t.name === 'save_place' && k === 'query'));
+    // an empty required list is refused by some providers, so it is left out
+    const parameters = required.length ? { type: 'object', properties: t.parameters, required } : { type: 'object', properties: t.parameters };
+    return { type: 'function', function: { name: t.name, description: t.description, parameters } };
+  });
 
   function readState() {
     try {
@@ -737,11 +731,14 @@
       if (res.error || res.status >= 400) {
         let detail = res.error;
         try {
-          detail = JSON.parse(res.body).error.message;
+          // "Provider returned error" alone says nothing, the provider and its own message are the reason
+          const error = JSON.parse(res.body).error;
+          const meta = error.metadata || {};
+          detail = `${error.message}${meta.provider_name ? ` (${meta.provider_name})` : ''}${meta.raw ? `: ${String(meta.raw).slice(0, 200)}` : ''}`;
         } catch (e) {
           detail = detail || `HTTP ${res.status}`;
         }
-        say('err', window.i18n.t('Fehler: {0}', detail));
+        say('err', window.i18n.t('Modell {0}: {1}', assistantState.model, detail));
         return;
       }
       let message;

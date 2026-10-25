@@ -46,6 +46,8 @@ class CloudVoice {
 
     private static final String BASE = "https://openrouter.ai/api/v1/audio/";
     static final String STT_MODEL = "openai/gpt-4o-mini-transcribe";
+    // tried in this order when a provider refuses the recording
+    private static final String[] STT_MODELS = {STT_MODEL, "openai/whisper-large-v3-turbo", "openai/whisper-1"};
     // any model of https://openrouter.ai/api/v1/models?output_modalities=speech, chosen on the phone page
     static final String DEFAULT_TTS_MODEL = "google/gemini-3.8-flash-tts";
     static final String DEFAULT_TTS_VOICE = "Kore";
@@ -232,24 +234,57 @@ class CloudVoice {
         JSONObject audio = new JSONObject()
                 .put("data", Base64.encodeToString(wav(pcm, RATE), Base64.NO_WRAP))
                 .put("format", "wav");
-        JSONObject request = new JSONObject()
-                .put("model", STT_MODEL)
-                .put("input_audio", audio)
-                .put("language", languageTag.substring(0, 2).toLowerCase(Locale.ROOT));
-        HttpURLConnection http = open("transcriptions", key, 30000);
-        try (OutputStream body = http.getOutputStream()) {
-            body.write(request.toString().getBytes(StandardCharsets.UTF_8));
+        String failure = "";
+        for (String model : STT_MODELS) {
+            JSONObject request = new JSONObject()
+                    .put("model", model)
+                    .put("input_audio", audio)
+                    .put("language", languageTag.substring(0, 2).toLowerCase(Locale.ROOT));
+            HttpURLConnection http = open("transcriptions", key, 30000);
+            try (OutputStream body = http.getOutputStream()) {
+                body.write(request.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            int status = http.getResponseCode();
+            String response = readAll(status < 400 ? http.getInputStream() : http.getErrorStream());
+            if (status >= 400) {
+                failure = text(languageTag, "stt") + " " + model + ": " + reason(status, response);
+                Log.w("CloudVoice", failure);
+                // a wrong key or no credit will not get better with another model
+                if (status == 401 || status == 402) {
+                    break;
+                }
+                continue;
+            }
+            usage.addSpeechSeconds(pcm.length / 2.0 / RATE);
+            String spoken = new JSONObject(response).optString("text", "").trim();
+            return spoken.isEmpty()
+                    ? "{\"error\":\"" + nothing(languageTag) + "\"}"
+                    : "{\"text\":" + JSONObject.quote(spoken) + "}";
         }
-        int status = http.getResponseCode();
-        String response = readAll(status < 400 ? http.getInputStream() : http.getErrorStream());
-        if (status >= 400) {
-            return "{\"error\":" + JSONObject.quote("OpenRouter " + status + ": " + shorten(response)) + "}";
+        return "{\"error\":" + JSONObject.quote(failure) + "}";
+    }
+
+    /**
+     * The useful part of an OpenRouter error: its message, and for "Provider returned error" the provider
+     * and what it said, which is where the actual reason is.
+     */
+    static String reason(int status, String body) {
+        try {
+            JSONObject error = new JSONObject(body).getJSONObject("error");
+            StringBuilder out = new StringBuilder(error.optString("message", "HTTP " + status));
+            JSONObject meta = error.optJSONObject("metadata");
+            if (meta != null) {
+                if (!meta.optString("provider_name").isEmpty()) {
+                    out.append(" (").append(meta.optString("provider_name")).append(")");
+                }
+                if (!meta.optString("raw").isEmpty()) {
+                    out.append(": ").append(shorten(meta.optString("raw")));
+                }
+            }
+            return out.toString();
+        } catch (Exception e) {
+            return "HTTP " + status + ": " + shorten(body);
         }
-        usage.addSpeechSeconds(pcm.length / 2.0 / RATE);
-        String spoken = new JSONObject(response).optString("text", "").trim();
-        return spoken.isEmpty()
-                ? "{\"error\":\"" + nothing(languageTag) + "\"}"
-                : "{\"text\":" + JSONObject.quote(spoken) + "}";
     }
 
     /**
@@ -380,7 +415,7 @@ class CloudVoice {
         }
         int status = http.getResponseCode();
         if (status >= 400) {
-            throw new IOException("OpenRouter " + status + ": " + shorten(readAll(http.getErrorStream())));
+            throw new IOException(reason(status, readAll(http.getErrorStream())));
         }
         boolean mp3 = String.valueOf(http.getContentType()).contains("mpeg");
         byte[] audio;
@@ -466,6 +501,9 @@ class CloudVoice {
         boolean en = tag.startsWith("en");
         if (key.equals("nokey")) {
             return tr ? "OpenRouter anahtarı yok, lütfen eşleştir" : en ? "No OpenRouter key, please pair" : "Kein OpenRouter Schlüssel, bitte koppeln";
+        }
+        if (key.equals("stt")) {
+            return tr ? "Ses tanıma" : en ? "Speech recognition" : "Spracherkennung";
         }
         if (key.equals("level")) {
             return tr ? "ses seviyesi" : en ? "level" : "Pegel";

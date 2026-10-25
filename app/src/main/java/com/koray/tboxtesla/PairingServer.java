@@ -46,6 +46,9 @@ class PairingServer {
 
         void onUnpair();
 
+        /** The last keys pressed in the car: [{code, name, ms, at}]. */
+        JSONArray recentKeys();
+
         /** Measures the microphones while the driver talks: {results, system}, see CloudVoice.testMicrophone. */
         JSONObject onMicTest() throws Exception;
     }
@@ -290,6 +293,9 @@ class PairingServer {
         state.put("ttsModel", data.optString("ttsModel", CloudVoice.DEFAULT_TTS_MODEL));
         state.put("ttsVoice", data.optString("ttsVoice", CloudVoice.DEFAULT_TTS_VOICE));
         state.put("mics", microphone.inputs());
+        state.put("keys", listener.recentKeys());
+        state.put("talkKey", data.optInt("talkKey", -1));
+        state.put("talkMode", data.optString("talkMode", "hold3"));
         state.put("micDevice", data.optInt("micDevice", 0));
         state.put("micSource", data.optString("micSource", Microphone.MIC));
         state.put("host", MdnsResponder.HOST + ":" + PORT);
@@ -347,6 +353,8 @@ class PairingServer {
         // wake words of older versions, the assistant only starts with a key now
         data.remove("wakeWords");
         data.put("micDevice", input.optInt("micDevice", data.optInt("micDevice", 0)));
+        data.put("talkKey", input.optInt("talkKey", data.optInt("talkKey", -1)));
+        data.put("talkMode", input.optString("talkMode", data.optString("talkMode", "hold3")));
         data.put("micSource", input.optString("micSource", data.optString("micSource", Microphone.MIC)));
         String ttsVoice = input.optString("ttsVoice", "").trim();
         data.put("ttsVoice", ttsVoice.isEmpty() ? CloudVoice.DEFAULT_TTS_VOICE : ttsVoice);

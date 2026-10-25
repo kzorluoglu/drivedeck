@@ -76,6 +76,20 @@
 <div class="head"><span></span><button id="refreshVoices" type="button">↻ Aktualisieren</button></div>
 <div id="ttsModels"><small>Lade Modelle ...</small></div>
 
+<h2 style="font-size:17px;margin:26px 0 0">Taste für den Assistenten</h2>
+<p class="hint">Drück im Auto die Taste, die du nehmen willst, dann hier auf Aktualisieren: sie erscheint unten. Erscheint beim langen Drücken ein Fenster von Android, nimm „zweimal kurz“ oder eine eigene Taste mit „einmal kurz“.</p>
+<label for="talkKey">Taste</label>
+<select id="talkKey"><option value="-1">Jede Taste</option></select>
+<label for="talkMode">Auslösen</label>
+<select id="talkMode">
+  <option value="hold3">3 Sekunden halten</option>
+  <option value="hold1">1 Sekunde halten</option>
+  <option value="double">Zweimal kurz drücken</option>
+  <option value="press">Einmal kurz drücken (nur eigene Taste)</option>
+</select>
+<dl class="stats" id="keyLog"><dt>…</dt><dd></dd></dl>
+<div class="head"><span></span><button id="refreshKeys" type="button">↻ Aktualisieren</button></div>
+
 <h2 style="font-size:17px;margin:26px 0 0">Mikrofon</h2>
 <p class="hint">Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 5 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.</p>
 <label for="micDevice">Eingang</label>
@@ -180,6 +194,16 @@
     "Es ist schon ein Schlüssel gespeichert.": ["Zaten bir anahtar kayıtlı.", "A key is already saved."],
     "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
     "Kontext": ["bağlam", "context"],
+    "Taste für den Assistenten": ["Asistan tuşu", "Key for the assistant"],
+    "Drück im Auto die Taste, die du nehmen willst, dann hier auf Aktualisieren: sie erscheint unten. Erscheint beim langen Drücken ein Fenster von Android, nimm „zweimal kurz“ oder eine eigene Taste mit „einmal kurz“.": ["Arabada kullanmak istediğin tuşa bas, sonra burada Yenile'ye dokun: aşağıda görünür. Uzun basınca Android bir pencere açıyorsa „iki kez kısa“ ya da kendi tuşunla „bir kez kısa“ seç.", "Press the key you want in the car, then tap refresh here: it shows up below. If a long press opens a window of Android, pick \"press twice\" or a key of its own with \"press once\"."],
+    "Taste": ["Tuş", "Key"],
+    "Jede Taste": ["Herhangi bir tuş", "Any key"],
+    "Auslösen": ["Başlatma", "Trigger"],
+    "3 Sekunden halten": ["3 saniye basılı tut", "Hold for 3 seconds"],
+    "1 Sekunde halten": ["1 saniye basılı tut", "Hold for 1 second"],
+    "Zweimal kurz drücken": ["İki kez kısa bas", "Press twice"],
+    "Einmal kurz drücken (nur eigene Taste)": ["Bir kez kısa bas (sadece ayrı bir tuş)", "Press once (own key only)"],
+    "noch keine Taste gedrückt": ["henüz tuşa basılmadı", "no key pressed yet"],
     "Mikrofon": ["Mikrofon", "Microphone"],
     "Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 5 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.": ["CarPlay/Android Auto ile kutu arabanın mikrofonunu kullanabilir, kutuya göre ayrı bir giriş olarak ya da sadece „Telefon görüşmesi“ modunda. Teste dokun ve yaklaşık 5 saniye boyunca durmadan konuş, sonra en yüksek sesli olanı seç ve kaydet.", "With CarPlay/Android Auto the box can use the car's microphone, depending on the box as its own input or only as a \"phone call\". Tap test and keep talking for about 5 seconds, then pick the loudest entry and save."],
     "Eingang": ["Giriş", "Input"],
@@ -357,7 +381,33 @@
     }
   };
 
+  // Keys: what the buttons of the car send, so one can be chosen for the assistant
+  function renderKeys(state) {
+    const keys = state.keys || [];
+    const select = $('talkKey');
+    const chosen = select.options.length > 1 ? Number(select.value) : (state.talkKey ?? -1);
+    const known = new Map([[-1, T('Jede Taste')]]);
+    if (chosen >= 0) {
+      known.set(chosen, `#${chosen}`);
+    }
+    keys.forEach((k) => known.set(k.code, `${k.name} (#${k.code})`));
+    select.innerHTML = '';
+    known.forEach((label, code) => {
+      select.appendChild(Object.assign(document.createElement('option'), { value: code, textContent: label }));
+    });
+    select.value = String(chosen);
+    $('keyLog').innerHTML = '';
+    (keys.length ? keys : [{ name: T('noch keine Taste gedrückt'), ms: '', at: 0 }]).forEach((k) => {
+      $('keyLog').append(
+        Object.assign(document.createElement('dt'), { textContent: k.at ? new Date(k.at).toLocaleTimeString(LANG) : '' }),
+        Object.assign(document.createElement('dd'), { textContent: k.ms === '' ? k.name : `${k.name} · ${k.ms} ms` }),
+      );
+    });
+  }
+  $('refreshKeys').onclick = () => loadState();
+
   function renderStats(state) {
+    renderKeys(state);
     const rows = [];
     const usd = (v) => `$${Number(v || 0).toFixed(v >= 10 ? 2 : 4)}`;
     const num = (v) => Number(v || 0).toLocaleString(LANG);
@@ -603,6 +653,7 @@
       loaded = true;
       $('model').value = state.model;
       renderMics(state);
+      $('talkMode').value = state.talkMode || 'hold3';
       $('ttsModel').value = state.ttsModel || '';
       $('ttsVoice').value = state.ttsVoice || '';
       renderVoices();
@@ -628,7 +679,8 @@
     try {
       await post('save', {
         openrouterKey: $('key').value, model: $('model').value, ttsModel: $('ttsModel').value, ttsVoice: $('ttsVoice').value,
-        micDevice: Number($('micDevice').value), micSource: $('micSource').value, logins,
+        micDevice: Number($('micDevice').value), micSource: $('micSource').value,
+        talkKey: Number($('talkKey').value), talkMode: $('talkMode').value, logins,
       });
       $('msg').className = 'ok';
       $('msg').textContent = T('Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.');

@@ -28,6 +28,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 
 /**
  * Hosts the web based dashboard from assets/web in a full screen WebView.
@@ -112,10 +114,12 @@ public class MainActivity extends Activity {
         secrets = new SecretStore(this);
         usage = new Usage(this);
         microphone = new Microphone(this, secrets);
+        loadTalkKey();
         tiles = new TileCache(this);
         pairing = new PairingServer(this, secrets, usage, microphone, new PairingServer.Listener() {
             @Override
             public void onSaved() {
+                loadTalkKey();
                 callPage(0, "{\"event\":\"paired\"}");
             }
 
@@ -133,6 +137,11 @@ public class MainActivity extends Activity {
                 } finally {
                     callPage(0, "{\"event\":\"micTest\",\"on\":false}");
                 }
+            }
+
+            @Override
+            public JSONArray recentKeys() {
+                return MainActivity.this.recentKeys();
             }
 
             @Override
@@ -370,31 +379,89 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Holding any key (but volume) for a few seconds, or a short press on a voice or search key, starts the
-    // assistant. The screen of the car is not touch-sensitive and the microphone is only open after this.
-    private static final long TALK_HOLD_MS = 3000;
+    // The assistant starts with a key, the screen of the car is not touch-sensitive and the microphone is only
+    // open after this. Which key and how is set on the phone page: by default holding any key (but volume)
+    // for 3 seconds. A voice or search key of the car always works with a short press.
+    private static final long DOUBLE_MS = 500;
+    private static final long SHORT_MS = 600;
+    private static final int KEYS_KEPT = 12;
     private final Runnable talkHeld = () -> callPage(0, "{\"event\":\"talkKey\"}");
-    private int talkKey = -1;
+    // the chosen key (-1: any) and the way: hold3, hold1, double or press
+    private volatile int talkKeyCode = -1;
+    private volatile String talkMode = "hold3";
+    private int heldCode = -1;
+    private int lastShortCode = -1;
+    private long lastShortAt;
+    // the last keys, shown on the phone page to find out what the buttons of the car send
+    private final ArrayDeque<JSONObject> keyLog = new ArrayDeque<>();
+
+    private void loadTalkKey() {
+        JSONObject data = secrets.load();
+        talkKeyCode = data.optInt("talkKey", -1);
+        talkMode = data.optString("talkMode", "hold3");
+    }
+
+    JSONArray recentKeys() {
+        synchronized (keyLog) {
+            return new JSONArray(keyLog);
+        }
+    }
+
+    private void logKey(int code, long heldMs) {
+        try {
+            synchronized (keyLog) {
+                keyLog.addFirst(new JSONObject().put("code", code).put("name", KeyEvent.keyCodeToString(code).replace("KEYCODE_", ""))
+                        .put("ms", heldMs).put("at", System.currentTimeMillis()));
+                while (keyLog.size() > KEYS_KEPT) {
+                    keyLog.removeLast();
+                }
+            }
+        } catch (Exception e) {
+            // only diagnostics
+        }
+    }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
         if (code == KeyEvent.KEYCODE_VOICE_ASSIST || code == KeyEvent.KEYCODE_ASSIST || code == KeyEvent.KEYCODE_SEARCH) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
+                logKey(code, event.getEventTime() - event.getDownTime());
                 callPage(0, "{\"event\":\"talkKey\"}");
             }
             return true;
         }
         boolean volume = code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE;
-        if (!volume) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                talkKey = code;
+        boolean chosen = !volume && (talkKeyCode < 0 || code == talkKeyCode);
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            heldCode = code;
+            if (chosen && talkMode.startsWith("hold")) {
                 web.removeCallbacks(talkHeld);
-                web.postDelayed(talkHeld, TALK_HOLD_MS);
-            } else if (event.getAction() == KeyEvent.ACTION_UP && code == talkKey) {
-                web.removeCallbacks(talkHeld);
-                talkKey = -1;
+                web.postDelayed(talkHeld, talkMode.equals("hold1") ? 1000 : 3000);
             }
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            long held = event.getEventTime() - event.getDownTime();
+            logKey(code, held);
+            if (code == heldCode) {
+                web.removeCallbacks(talkHeld);
+                heldCode = -1;
+            }
+            if (chosen && held < SHORT_MS && talkMode.equals("press") && talkKeyCode >= 0) {
+                callPage(0, "{\"event\":\"talkKey\"}");
+            } else if (chosen && held < SHORT_MS && talkMode.equals("double")) {
+                long now = event.getEventTime();
+                if (code == lastShortCode && now - lastShortAt < DOUBLE_MS) {
+                    lastShortCode = -1;
+                    callPage(0, "{\"event\":\"talkKey\"}");
+                } else {
+                    lastShortCode = code;
+                    lastShortAt = now;
+                }
+            }
+        }
+        // a key of its own for the assistant does nothing else in the page
+        if (chosen && talkKeyCode >= 0 && talkMode.equals("press")) {
+            return true;
         }
         return super.dispatchKeyEvent(event);
     }
