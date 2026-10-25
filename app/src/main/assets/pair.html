@@ -77,7 +77,7 @@
 <div id="ttsModels"><small>Lade Modelle ...</small></div>
 
 <h2 style="font-size:17px;margin:26px 0 0">Mikrofon</h2>
-<p class="hint">Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 30 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.</p>
+<p class="hint">Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 5 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.</p>
 <label for="micDevice">Eingang</label>
 <select id="micDevice"><option value="0">Standard</option></select>
 <label for="micSource">Aufnahmeart</label>
@@ -181,7 +181,7 @@
     "Gespeichert. Du kannst diese Seite offen lassen, um weitere Ziele zu senden.": ["Kaydedildi. Daha fazla hedef göndermek için bu sayfayı açık bırakabilirsin.", "Saved. You can leave this page open to send more destinations."],
     "Kontext": ["bağlam", "context"],
     "Mikrofon": ["Mikrofon", "Microphone"],
-    "Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 30 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.": ["CarPlay/Android Auto ile kutu arabanın mikrofonunu kullanabilir, kutuya göre ayrı bir giriş olarak ya da sadece „Telefon görüşmesi“ modunda. Teste dokun ve yaklaşık 30 saniye boyunca durmadan konuş, sonra en yüksek sesli olanı seç ve kaydet.", "With CarPlay/Android Auto the box can use the car's microphone, depending on the box as its own input or only as a \"phone call\". Tap test and keep talking for about 30 seconds, then pick the loudest entry and save."],
+    "Mit CarPlay/Android Auto kann die Box das Mikrofon des Autos nutzen, je nach Box als eigener Eingang oder nur als „Telefonat“. Tippe auf Test und sprich dabei etwa 5 Sekunden durchgehend, dann wähle den lautesten Eintrag und speichere.": ["CarPlay/Android Auto ile kutu arabanın mikrofonunu kullanabilir, kutuya göre ayrı bir giriş olarak ya da sadece „Telefon görüşmesi“ modunda. Teste dokun ve yaklaşık 5 saniye boyunca durmadan konuş, sonra en yüksek sesli olanı seç ve kaydet.", "With CarPlay/Android Auto the box can use the car's microphone, depending on the box as its own input or only as a \"phone call\". Tap test and keep talking for about 5 seconds, then pick the loudest entry and save."],
     "Eingang": ["Giriş", "Input"],
     "Aufnahmeart": ["Kayıt türü", "Recording mode"],
     "Standard": ["Varsayılan", "Default"],
@@ -189,7 +189,7 @@
     "Telefonat": ["Telefon görüşmesi", "Phone call"],
     "Telefonat (öffnet oft das Mikrofon des Autos)": ["Telefon görüşmesi (çoğu zaman arabanın mikrofonunu açar)", "Phone call (often opens the car's microphone)"],
     "Mikrofon testen": ["Mikrofonu test et", "Test the microphone"],
-    "Sprich jetzt durchgehend, der Test dauert etwa 30 Sekunden …": ["Şimdi durmadan konuş, test yaklaşık 30 saniye sürer …", "Keep talking now, the test takes about 30 seconds …"],
+    "Sprich jetzt durchgehend, der Test dauert etwa 5 Sekunden …": ["Şimdi durmadan konuş, test yaklaşık 5 saniye sürer …", "Keep talking now, the test takes about 5 seconds …"],
     "Unbearbeitet": ["İşlenmemiş", "Unprocessed"],
     "Kamera": ["Kamera", "Camcorder"],
     "Quelle": ["kaynak", "source"],
@@ -297,7 +297,7 @@
 
   $('micTest').onclick = async () => {
     const box = $('micResults');
-    box.innerHTML = '<small>' + T('Sprich jetzt durchgehend, der Test dauert etwa 30 Sekunden …') + '</small>';
+    box.innerHTML = '<small>' + T('Sprich jetzt durchgehend, der Test dauert etwa 5 Sekunden …') + '</small>';
     $('micTest').disabled = true;
     try {
       const answer = await post('mic-test', {});

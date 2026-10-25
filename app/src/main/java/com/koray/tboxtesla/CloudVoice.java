@@ -265,7 +265,7 @@ class CloudVoice {
         }
         try {
             JSONObject before = microphone.system(foreground);
-            JSONArray results = microphone.test(700);
+            JSONArray results = microphone.test(4500);
             return new JSONObject().put("results", results).put("system", before);
         } finally {
             mic.release();

@@ -157,13 +157,21 @@ class Microphone {
      * The loudest one is the right microphone. "zero" means every sample was exactly 0: Android hands this
      * app silence on purpose (another app holds the microphone, or this one is not in the foreground).
      */
-    JSONArray test(long eachMs) {
+    JSONArray test(long totalMs) {
         JSONArray results = new JSONArray();
         JSONArray devices = inputs();
+        // the whole test stays within totalMs, every combination gets its share (at least 150 ms)
+        int rates = 2;
+        long eachMs = Math.max(150, totalMs / Math.max(1, (long) devices.length() * SOURCES.length * rates));
+        // opening a recorder takes time too, whatever is left at the end is skipped
+        long deadline = System.currentTimeMillis() + totalMs + 500;
         for (int d = 0; d < devices.length(); d++) {
             JSONObject device = devices.optJSONObject(d);
             for (String source : SOURCES) {
                 for (int rate : new int[] {16000, 48000}) {
+                    if (System.currentTimeMillis() + eachMs > deadline) {
+                        return results;
+                    }
                     results.put(measure(device, source, rate, eachMs));
                 }
             }
@@ -173,7 +181,7 @@ class Microphone {
 
     private JSONObject measure(JSONObject device, String source, int rate, long eachMs) {
         JSONObject row = new JSONObject();
-        short[] chunk = new short[rate / 10];
+        short[] chunk = new short[rate / 20];
         try {
             row.put("device", device.optInt("id")).put("name", device.optString("name")).put("source", source).put("rate", rate);
             AudioRecord recorder = open(rate, chunk.length * 8, device.optInt("id"), source);
