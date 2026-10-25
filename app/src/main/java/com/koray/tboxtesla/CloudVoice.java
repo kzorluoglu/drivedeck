@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Speech to text and text to speech through OpenRouter, so the voice does not depend on the
  * speech services of the box. The key stays on this side, like for the chat requests. The wake
- * word is not heard here but on the box itself, see {@link LocalWake}.
+ * word is not heard here but on the box itself, see {@link VoskWake}.
  */
 class CloudVoice {
     interface Callback {
@@ -241,6 +241,11 @@ class CloudVoice {
         return spoken.isEmpty()
                 ? "{\"error\":\"" + text(languageTag, "nothing") + "\"}"
                 : "{\"text\":" + JSONObject.quote(spoken) + "}";
+    }
+
+    /** The one microphone: whoever records holds it, the wake word gives it up for a command. */
+    Semaphore mic() {
+        return mic;
     }
 
     /** True while the microphone records a command or an answer is spoken, the wake word waits then. */

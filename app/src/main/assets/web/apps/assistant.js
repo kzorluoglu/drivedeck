@@ -11,8 +11,6 @@
   const HISTORY_KEY = 'assistantHistory';
   const HISTORY_MAX = 200;
 
-  // "DriveDeck" the way speech recognition writes it: Drive Deck, DriveDeck, Draiv dek, Dreiwdeck ...
-  const WAKE = /dr(?:ai|ay|ei|i|y|ı|a)?[vwf]?e?[\s-]?[dt][eaiı](?:ck|k|c|g|q)/i;
 
   // Clicks on buttons like these need a yes from the driver first.
   const SENSITIVE = /kaufen|bestell|bezahl|zahlungspflichtig|abonnier|senden|absenden|veröffentlich|löschen|entfernen|bestätig|buy|purchase|checkout|\bpay\b|order|subscribe|send|post|publish|delete|remove|confirm|submit|satın|öde|sipariş|abone|gönder|yayınla|\bsil\b|onayla/i;
@@ -45,6 +43,15 @@
       driving: 'Während der Fahrt nicht verfügbar',
       steps_limit: 'Zu viele Schritte, ich höre auf.',
       cancelled: 'Abgebrochen.',
+      status: {
+        ready: 'Sag „DriveDeck“',
+        loading: (p) => `„DriveDeck“ wird vorbereitet ${p} %`,
+        off: 'Sprachaktivierung aus',
+        listen: 'Ich höre zu …',
+        think: 'Ich arbeite …',
+        speak: 'Ich spreche',
+        err: 'Nicht verstanden, sag noch mal „DriveDeck“',
+      },
       tools: { search: 'Suche', open_url: 'Öffnet', click: 'Klickt', type_text: 'Tippt', login: 'Trägt Anmeldung ein', find_place: 'Suche Ziel', navigate_to: 'Navigation zu', start_navigation: 'Navigation zu', stop_navigation: 'Navigation beendet', find_nearby: 'Suche in der Nähe', weather: 'Wetter', set_timer: 'Erinnerung', play_music: 'Spielt', save_place: 'Ort gespeichert', set_layout: 'Ansicht', open_app: 'Öffnet', close_app: 'Schließt' },
     },
     tr: {
@@ -71,6 +78,15 @@
       driving: 'Sürüş sırasında kullanılamaz',
       steps_limit: 'Çok fazla adım, duruyorum.',
       cancelled: 'İptal edildi.',
+      status: {
+        ready: '„DriveDeck“ de',
+        loading: (p) => `„DriveDeck“ hazırlanıyor %${p}`,
+        off: 'Sesle uyandırma kapalı',
+        listen: 'Dinliyorum …',
+        think: 'Çalışıyorum …',
+        speak: 'Konuşuyorum',
+        err: 'Anlamadım, tekrar „DriveDeck“ de',
+      },
       tools: { search: 'Arama', open_url: 'Açıyor', click: 'Tıklıyor', type_text: 'Yazıyor', login: 'Girişi dolduruyor', find_place: 'Hedef arıyor', navigate_to: 'Navigasyon', start_navigation: 'Navigasyon', stop_navigation: 'Navigasyon bitti', find_nearby: 'Yakında arıyor', weather: 'Hava durumu', set_timer: 'Hatırlatıcı', play_music: 'Çalıyor', save_place: 'Yer kaydedildi', set_layout: 'Görünüm', open_app: 'Açıyor', close_app: 'Kapatıyor' },
     },
     en: {
@@ -97,6 +113,15 @@
       driving: 'Not available while driving',
       steps_limit: 'Too many steps, I am stopping.',
       cancelled: 'Cancelled.',
+      status: {
+        ready: 'Say "DriveDeck"',
+        loading: (p) => `Preparing "DriveDeck" ${p} %`,
+        off: 'Wake word off',
+        listen: 'Listening …',
+        think: 'Working …',
+        speak: 'Speaking',
+        err: 'Did not understand, say "DriveDeck" again',
+      },
       tools: { search: 'Searching', open_url: 'Opening', click: 'Clicking', type_text: 'Typing', login: 'Filling in login', find_place: 'Looking up destination', navigate_to: 'Navigating to', start_navigation: 'Navigating to', stop_navigation: 'Navigation ended', find_nearby: 'Searching nearby', weather: 'Weather', set_timer: 'Reminder', play_music: 'Playing', save_place: 'Place saved', set_layout: 'View', open_app: 'Opening', close_app: 'Closing' },
     },
   };
@@ -259,25 +284,6 @@
     }
   }
 
-  // A short rising tone: the wake word was heard, now the command
-  function chime() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.setValueAtTime(660, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(990, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.25);
-      osc.onended = () => ctx.close();
-    } catch (e) {
-      // no sound then, the dot still shows that it listens
-    }
-  }
-
   // the language is chosen once for the whole app, at the first start
   const lang = LANGS[window.i18n.lang] ? window.i18n.lang : 'de';
   const L = () => LANGS[lang];
@@ -293,12 +299,14 @@
   host.innerHTML = `
     <button class="as-orb"><i></i></button>
     <div class="as-line">
+      <b class="as-status"></b>
       <p class="as-caption"></p>
       <span class="as-confirm" hidden>${L().yes} / ${L().no}</span>
     </div>`;
   dock.insertBefore(host, dock.querySelector('.trip'));
   const orb = host.querySelector('.as-orb');
   const caption = host.querySelector('.as-caption');
+  const statusEl = host.querySelector('.as-status');
   const confirmHint = host.querySelector('.as-confirm');
 
   let assistantState = readState();
@@ -311,27 +319,49 @@
   let drivingNow = false;
   let captionTimer = null;
   let speakTimer = null;
+  // what the idle dot says: ready for the wake word, still loading it, or switched off
+  let idleText = L().status.ready;
 
   if (device && device.setSpeechLanguage) {
     device.setSpeechLanguage(L().tag);
   }
+  setState('idle');
 
   setInterval(() => {
     drivingNow = isMoving();
   }, 1000);
 
-  // idle, listen, think or speak: the dot follows it
+  // idle, listen, think, speak or err: the dot and the status text follow it. Anything but idle opens the
+  // agent in the dock, it closes again a while after the last word.
   function setState(next) {
     host.dataset.state = next;
+    statusEl.textContent = next === 'idle' ? idleText : L().status[next];
+    if (next !== 'idle') {
+      clearTimeout(captionTimer);
+      dock.classList.add('as-talking');
+    } else {
+      closeLater();
+    }
   }
 
-  // the trip values make room while there is something to read
-  function showCaption(text, kind) {
+  function closeLater() {
     clearTimeout(captionTimer);
+    captionTimer = setTimeout(() => {
+      if (host.dataset.state === 'idle') {
+        dock.classList.remove('as-talking');
+        caption.textContent = '';
+      }
+    }, CAPTION_MS);
+  }
+
+  // what the agent does or says, below the status. The trip values make room meanwhile.
+  function showCaption(text, kind) {
     caption.textContent = text;
     caption.className = `as-caption ${kind || ''}`;
     dock.classList.add('as-talking');
-    captionTimer = setTimeout(() => dock.classList.remove('as-talking'), CAPTION_MS);
+    if (host.dataset.state === 'idle') {
+      closeLater();
+    }
   }
 
   function say(kind, text) {
@@ -790,10 +820,16 @@
     setState('listen');
     const result = await window.core.browser.listen(L().tag);
     listening = false;
-    setState('idle');
-    if (result.error) {
-      say('err', result.error);
-    } else if (result.text) {
+    if (result.error || !result.text) {
+      say('err', result.error || L().status.err);
+      setState('err');
+      setTimeout(() => {
+        if (host.dataset.state === 'err') {
+          setState('idle');
+        }
+      }, 4000);
+    } else {
+      setState('idle');
       submit(result.text);
     }
   }
@@ -830,7 +866,6 @@
         if (text) {
           submit(text);
         } else {
-          chime();
           listen();
         }
       }
@@ -841,9 +876,19 @@
   let lastVoiceError = 0;
 
   window.core.onEvent((e) => {
-    if ((e.event === 'voiceError' || e.event === 'wakeError') && Date.now() - lastVoiceError > 30000) {
+    if (e.event === 'voiceError' && Date.now() - lastVoiceError > 30000) {
       lastVoiceError = Date.now();
-      toast(window.i18n.t(e.event === 'voiceError' ? 'Stimme: {0}' : 'Aktivierung: {0}', String(e.message || '').slice(0, 140)));
+      toast(window.i18n.t('Stimme: {0}', String(e.message || '').slice(0, 140)));
+    } else if (e.event === 'wakeStatus') {
+      idleText = e.state === 'loading' ? L().status.loading(e.detail)
+        : e.state === 'off' ? L().status.off
+          : e.state === 'error' ? window.i18n.t('Aktivierung: {0}', String(e.detail || '').slice(0, 140))
+            : L().status.ready;
+      if (host.dataset.state === 'idle') {
+        statusEl.textContent = idleText;
+      }
+    } else if (e.event === 'wake') {
+      window.core.assistant.open('wake', '');
     } else if (e.event === 'unpaired') {
       writeHistory([]);
       turns = [];
@@ -853,16 +898,6 @@
       say('note', L().paired);
       if (panel && panel.view === 'pair') {
         document.getElementById('app-close').click();
-      }
-    } else if (e.event === 'heard') {
-      // the recognizer of Android sends its guesses separated by " | ", the wake word may be in any of them
-      for (const guess of String(e.text || '').split(' | ')) {
-        const match = WAKE.exec(guess);
-        if (match) {
-          const command = guess.slice(match.index + match[0].length).replace(/^[\s,.!?:;-]+/, '').trim();
-          window.core.assistant.open('wake', command.length > 1 ? command : '');
-          break;
-        }
       }
     }
   });

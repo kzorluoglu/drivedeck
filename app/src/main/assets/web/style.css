@@ -1093,6 +1093,41 @@ svg {
   --as-b: #0ea5a4;
 }
 
+.as-dock[data-state=err] {
+  --as-a: #f97316;
+  --as-b: #ef4444;
+}
+
+/* the agent is open: a lit pill with a bigger dot, so it is clear from afar that it listens or works */
+.as-dock {
+  padding: 0.8vh 1.4vw 0.8vh 0.8vw;
+  border-radius: 6vh;
+  transition: background 0.3s;
+}
+
+#dock.as-talking .as-dock {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+#dock.as-talking .as-orb {
+  width: 8vh;
+  height: 8vh;
+}
+
+.as-status {
+  display: block;
+  font-size: 2.2vh;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+#dock.as-talking .as-status {
+  font-size: 2.6vh;
+  color: var(--as-a);
+}
+
 .as-orb {
   position: relative;
   flex: none;
@@ -1149,23 +1184,25 @@ svg {
 }
 
 .as-line {
-  display: none;
   min-width: 0;
   max-width: 34vw;
 }
 
-#dock.as-talking .as-line {
-  display: block;
+.as-caption {
+  display: none;
+}
+
+#dock.as-talking .as-caption:not(:empty) {
+  display: -webkit-box;
 }
 
 #dock.as-talking .trip {
   display: none;
 }
 
-.as-caption {
-  margin: 0;
+.as-line .as-caption {
+  margin: 0.2vh 0 0;
   overflow: hidden;
-  display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   font-size: 2.3vh;
