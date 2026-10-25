@@ -42,6 +42,7 @@
       declined: 'Vom Fahrer abgelehnt',
       driving: 'Während der Fahrt nicht verfügbar',
       steps_limit: 'Zu viele Schritte, ich höre auf.',
+      micTest: 'Mikrofontest vom Handy: bitte durchgehend sprechen',
       cancelled: 'Abgebrochen.',
       status: {
         ready: 'Taste 3 s halten, dann sprechen',
@@ -75,6 +76,7 @@
       declined: 'Sürücü reddetti',
       driving: 'Sürüş sırasında kullanılamaz',
       steps_limit: 'Çok fazla adım, duruyorum.',
+      micTest: 'Telefondan mikrofon testi: lütfen durmadan konuş',
       cancelled: 'İptal edildi.',
       status: {
         ready: 'Tuşu 3 sn tut, sonra konuş',
@@ -108,6 +110,7 @@
       declined: 'Declined by the driver',
       driving: 'Not available while driving',
       steps_limit: 'Too many steps, I am stopping.',
+      micTest: 'Microphone test from the phone: please keep talking',
       cancelled: 'Cancelled.',
       status: {
         ready: 'Hold a key 3 s, then speak',
@@ -872,6 +875,14 @@
     if (e.event === 'voiceError' && Date.now() - lastVoiceError > 30000) {
       lastVoiceError = Date.now();
       toast(window.i18n.t('Stimme: {0}', String(e.message || '').slice(0, 140)));
+    } else if (e.event === 'micTest') {
+      // the phone page measures the microphones, the driver should talk meanwhile
+      if (e.on) {
+        setState('listen');
+        showCaption(L().micTest, 'note');
+      } else {
+        setState('idle');
+      }
     } else if (e.event === 'talkKey') {
       // a held key or the voice key of the car: listen, end the recording early, or stop a running answer
       if (busy) {

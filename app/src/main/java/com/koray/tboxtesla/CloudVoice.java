@@ -2,15 +2,14 @@ package com.koray.tboxtesla;
 
 import android.content.Context;
 import android.media.AudioAttributes;
-import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaPlayer;
-import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -69,6 +68,7 @@ class CloudVoice {
     private final Context context;
     private final SecretStore secrets;
     private final Usage usage;
+    private final Microphone microphone;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final File cache;
 
@@ -83,10 +83,11 @@ class CloudVoice {
     // loudest level of the last recording, reported with "nothing understood" to see what the microphone gets
     private volatile int lastPeak;
 
-    CloudVoice(Context context, SecretStore secrets, Usage usage) {
+    CloudVoice(Context context, SecretStore secrets, Usage usage, Microphone microphone) {
         this.context = context;
         this.secrets = secrets;
         this.usage = usage;
+        this.microphone = microphone;
         cache = new File(context.getCacheDir(), "tts");
         cache.mkdirs();
         prune();
@@ -153,13 +154,8 @@ class CloudVoice {
 
     /** Returns 16 kHz mono PCM of the speech, or null when nobody spoke. */
     private byte[] record(Runnable onReady) {
-        int minimum = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.MIC, RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(minimum, CHUNK * 4));
-        if (recorder.getState() != AudioRecord.STATE_INITIALIZED) {
-            recorder.release();
-            throw new IllegalStateException("Mikrofon nicht verfügbar");
-        }
+        // the input chosen on the phone page, the car's microphone when the box offers it
+        AudioRecord recorder = microphone.open(RATE, CHUNK * 4);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         short[] chunk = new short[CHUNK];
         double floor = -1;
@@ -206,8 +202,7 @@ class CloudVoice {
                 }
             }
         } finally {
-            recorder.stop();
-            recorder.release();
+            microphone.close(recorder);
         }
         lastPeak = (int) Math.round(peak);
         if (cancel) {
@@ -255,6 +250,21 @@ class CloudVoice {
         return spoken.isEmpty()
                 ? "{\"error\":\"" + nothing(languageTag) + "\"}"
                 : "{\"text\":" + JSONObject.quote(spoken) + "}";
+    }
+
+    /** Measures every input for the phone page (see Microphone.test), while nothing else records. */
+    JSONArray testMicrophone() throws Exception {
+        if (!microphone.allowed()) {
+            throw new IllegalStateException("Mikrofon nicht erlaubt, einmal im Auto die Spracheingabe starten");
+        }
+        if (!mic.tryAcquire(5, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Mikrofon belegt");
+        }
+        try {
+            return microphone.test(1500);
+        } finally {
+            mic.release();
+        }
     }
 
     // Text to speech

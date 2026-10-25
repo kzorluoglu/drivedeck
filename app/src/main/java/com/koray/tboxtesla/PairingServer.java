@@ -45,6 +45,9 @@ class PairingServer {
         void onMessage(JSONObject message);
 
         void onUnpair();
+
+        /** Measures the microphones while the driver talks, see Microphone.test. */
+        JSONArray onMicTest() throws Exception;
     }
 
     static final int PORT = 8765;
@@ -53,15 +56,17 @@ class PairingServer {
     private final Context context;
     private final SecretStore store;
     private final Usage usage;
+    private final Microphone microphone;
     private final Listener listener;
     private final SecureRandom random = new SecureRandom();
 
     private ServerSocket server;
 
-    PairingServer(Context context, SecretStore store, Usage usage, Listener listener) {
+    PairingServer(Context context, SecretStore store, Usage usage, Microphone microphone, Listener listener) {
         this.context = context;
         this.store = store;
         this.usage = usage;
+        this.microphone = microphone;
         this.listener = listener;
     }
 
@@ -225,7 +230,7 @@ class PairingServer {
             respondCors(out, "drivedeck");
             return;
         }
-        // /p/<token>[/state|/save|/send|/reset-usage|/unpair]
+        // /p/<token>[/state|/save|/send|/reset-usage|/mic-test|/unpair]
         String[] parts = plain.split("/");
         byte[] key = parts.length < 3 || !parts[1].equals("p") ? null : keyIfValid(parts[2]);
         if (key == null) {
@@ -237,6 +242,14 @@ class PairingServer {
             respond(out, 200, "text/html", readAsset("pair.html"));
         } else if (method.equals("GET") && action.equals("state")) {
             respond(out, 200, "application/json", encrypt(key, state().toString()).toString());
+        } else if (method.equals("POST") && action.equals("mic-test")) {
+            JSONObject answer = new JSONObject();
+            try {
+                answer.put("results", listener.onMicTest());
+            } catch (Exception e) {
+                answer.put("error", String.valueOf(e.getMessage()));
+            }
+            respond(out, 200, "application/json", encrypt(key, answer.toString()).toString());
         } else if (method.equals("POST") && action.equals("unpair")) {
             // answered with the old key, everything after this needs a new QR code
             respond(out, 200, "application/json", encrypt(key, "{\"ok\":true}").toString());
@@ -276,6 +289,9 @@ class PairingServer {
         JSONObject data = store.load();
         state.put("ttsModel", data.optString("ttsModel", CloudVoice.DEFAULT_TTS_MODEL));
         state.put("ttsVoice", data.optString("ttsVoice", CloudVoice.DEFAULT_TTS_VOICE));
+        state.put("mics", microphone.inputs());
+        state.put("micDevice", data.optInt("micDevice", 0));
+        state.put("micSource", data.optString("micSource", Microphone.MIC));
         state.put("host", MdnsResponder.HOST + ":" + PORT);
         state.put("ip", localAddress() + ":" + PORT);
         return state;
@@ -330,6 +346,8 @@ class PairingServer {
         data.put("ttsModel", ttsModel.isEmpty() ? CloudVoice.DEFAULT_TTS_MODEL : ttsModel);
         // wake words of older versions, the assistant only starts with a key now
         data.remove("wakeWords");
+        data.put("micDevice", input.optInt("micDevice", data.optInt("micDevice", 0)));
+        data.put("micSource", input.optString("micSource", data.optString("micSource", Microphone.MIC)));
         String ttsVoice = input.optString("ttsVoice", "").trim();
         data.put("ttsVoice", ttsVoice.isEmpty() ? CloudVoice.DEFAULT_TTS_VOICE : ttsVoice);
 

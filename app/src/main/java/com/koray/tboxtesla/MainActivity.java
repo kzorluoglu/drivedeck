@@ -28,6 +28,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -57,6 +58,7 @@ public class MainActivity extends Activity {
     private PairingServer pairing;
     private MdnsResponder mdns;
     private Usage usage;
+    private Microphone microphone;
     private TileCache tiles;
     private final ObdClient obd = new ObdClient();
     private int listenId;
@@ -108,8 +110,9 @@ public class MainActivity extends Activity {
 
         secrets = new SecretStore(this);
         usage = new Usage(this);
+        microphone = new Microphone(this, secrets);
         tiles = new TileCache(this);
-        pairing = new PairingServer(this, secrets, usage, new PairingServer.Listener() {
+        pairing = new PairingServer(this, secrets, usage, microphone, new PairingServer.Listener() {
             @Override
             public void onSaved() {
                 callPage(0, "{\"event\":\"paired\"}");
@@ -118,6 +121,17 @@ public class MainActivity extends Activity {
             @Override
             public void onMessage(JSONObject message) {
                 callPage(0, "{\"event\":\"inbox\",\"message\":" + message + "}");
+            }
+
+            @Override
+            public JSONArray onMicTest() throws Exception {
+                // the car shows that it listens, the driver should talk during the test
+                callPage(0, "{\"event\":\"micTest\",\"on\":true}");
+                try {
+                    return bridge.cloud.testMicrophone();
+                } finally {
+                    callPage(0, "{\"event\":\"micTest\",\"on\":false}");
+                }
             }
 
             @Override
@@ -420,7 +434,7 @@ public class MainActivity extends Activity {
 
         DeviceBridge(Context context) {
             this.context = context;
-            cloud = new CloudVoice(context, secrets, usage);
+            cloud = new CloudVoice(context, secrets, usage, microphone);
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         }
 
