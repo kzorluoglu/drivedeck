@@ -11,6 +11,10 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 /**
@@ -19,6 +23,10 @@ import java.util.ArrayList;
  * page with all guesses of the recognizer, the page decides whether it started with the wake word.
  * The recognizer is restarted after each phrase and steps aside while the OpenRouter voice records or
  * speaks.
+ *
+ * "DriveDeck" is English, so the English recognizer listens first, whatever the app language is. When a
+ * setup keeps failing (language not installed, no offline model) the next one is tried: English online,
+ * then the app language offline and online. The last phrases and errors are kept for the phone page.
  */
 class LocalWake {
     interface Busy {
@@ -26,7 +34,8 @@ class LocalWake {
     }
 
     interface Listener {
-        void heard(String text);
+        /** text: the guesses separated by " | ", language: the tag the recognizer listened in. */
+        void heard(String text, String language);
 
         /** state: ready, off or error (detail = message). */
         void status(String state, String detail);
@@ -37,6 +46,8 @@ class LocalWake {
     private static final long BACKOFF_MS = 3000;
     // the start tone of the recognizer plays right after startListening
     private static final long TONE_MS = 600;
+    private static final int FAILURES_BEFORE_SWITCH = 2;
+    private static final int KEEP = 10;
 
     private final Context context;
     private final AudioManager audio;
@@ -45,7 +56,13 @@ class LocalWake {
     private final Listener listener;
 
     private SpeechRecognizer recognizer;
-    private String languageTag = "de-DE";
+    private String appTag = "de-DE";
+    // setups in the order they are tried: language and whether the offline model is asked for
+    private String[][] setups = {};
+    private int setup;
+    private int failures;
+    private final ArrayDeque<JSONObject> heardLog = new ArrayDeque<>();
+    private String lastError = "";
     private boolean wanted;
     private boolean held;
     private boolean listening;
@@ -62,7 +79,14 @@ class LocalWake {
 
     /** Main thread only, like everything in this class. */
     void start(String tag) {
-        languageTag = tag;
+        if (!tag.equals(appTag) || setups.length == 0) {
+            appTag = tag;
+            setups = tag.startsWith("en")
+                    ? new String[][] {{"en-US", "offline"}, {"en-US", "online"}}
+                    : new String[][] {{"en-US", "offline"}, {"en-US", "online"}, {tag, "offline"}, {tag, "online"}};
+            setup = 0;
+            failures = 0;
+        }
         if (wanted) {
             return;
         }
@@ -124,8 +148,8 @@ class LocalWake {
         }
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag);
-        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, setups[setup][0]);
+        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, setups[setup][1].equals("offline"));
         // several guesses: with an accent the wake word is often only the second or third one
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.getPackageName());
@@ -198,13 +222,75 @@ class LocalWake {
         }
     }
 
+    /** A setup that keeps failing is given up for the next one. */
+    private void failed(int error) {
+        lastError = describe(error) + " (" + setups[setup][0] + ", " + setups[setup][1] + ")";
+        failures++;
+        if (failures >= FAILURES_BEFORE_SWITCH && setup + 1 < setups.length) {
+            setup++;
+            failures = 0;
+        }
+        listener.status(failures == 0 ? "ready" : "error", lastError);
+    }
+
+    private static String describe(int error) {
+        switch (error) {
+            case SpeechRecognizer.ERROR_NETWORK:
+            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                return "kein Netz für die Spracherkennung";
+            case SpeechRecognizer.ERROR_AUDIO:
+                return "Mikrofon liefert nichts";
+            case SpeechRecognizer.ERROR_SERVER:
+                return "Spracherkennung antwortet nicht";
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                return "Spracherkennung belegt";
+            case 12:
+                return "Sprache nicht unterstützt";
+            case 13:
+                return "Sprachpaket nicht installiert";
+            default:
+                return "Fehler " + error;
+        }
+    }
+
+    private void remember(String text) {
+        try {
+            synchronized (heardLog) {
+                heardLog.addFirst(new JSONObject().put("at", System.currentTimeMillis()).put("text", text));
+                while (heardLog.size() > KEEP) {
+                    heardLog.removeLast();
+                }
+            }
+        } catch (Exception e) {
+            // only diagnostics
+        }
+    }
+
+    /** For the phone page: what is listening, the last phrases and the last error. Any thread. */
+    JSONObject diagnostics() {
+        JSONObject out = new JSONObject();
+        try {
+            String[] current = setups.length > 0 ? setups[setup] : new String[] {"", ""};
+            out.put("on", wanted).put("language", current[0]).put("mode", current[1]).put("error", lastError);
+            synchronized (heardLog) {
+                out.put("heard", new JSONArray(heardLog));
+            }
+        } catch (Exception e) {
+            // only diagnostics
+        }
+        return out;
+    }
+
     private final RecognitionListener callbacks = new RecognitionListener() {
         @Override
         public void onResults(Bundle results) {
             ArrayList<String> texts = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
             restart(RESTART_MS, false);
+            failures = 0;
             if (texts != null && !texts.isEmpty()) {
-                listener.heard(String.join(" | ", texts));
+                String text = String.join(" | ", texts);
+                remember(text);
+                listener.heard(text, setups[setup][0]);
             }
         }
 
@@ -218,6 +304,7 @@ class LocalWake {
             }
             if (!quiet) {
                 Log.w("LocalWake", "recognizer error " + error);
+                failed(error);
             }
             restart(quiet ? RESTART_MS : BACKOFF_MS, !quiet);
         }

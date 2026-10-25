@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.widget.FrameLayout;
@@ -134,6 +135,7 @@ public class MainActivity extends Activity {
         mdns = new MdnsResponder(this);
         mdns.start();
         bridge = new DeviceBridge(this);
+        pairing.setWakeInfo(bridge::wakeDiagnostics);
         updater = new Updater(this);
         IntentFilter resultFilter = new IntentFilter(Updater.RESULT_ACTION);
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -339,6 +341,35 @@ public class MainActivity extends Activity {
         }
     }
 
+    // Holding any key (but volume) for a few seconds, or a short press on a voice or search key, starts the
+    // assistant. The screen of the car is not touch-sensitive, this works when the wake word is not heard.
+    private static final long TALK_HOLD_MS = 3000;
+    private final Runnable talkHeld = () -> callPage(0, "{\"event\":\"talkKey\"}");
+    private int talkKey = -1;
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_VOICE_ASSIST || code == KeyEvent.KEYCODE_ASSIST || code == KeyEvent.KEYCODE_SEARCH) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                callPage(0, "{\"event\":\"talkKey\"}");
+            }
+            return true;
+        }
+        boolean volume = code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE;
+        if (!volume) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                talkKey = code;
+                web.removeCallbacks(talkHeld);
+                web.postDelayed(talkHeld, TALK_HOLD_MS);
+            } else if (event.getAction() == KeyEvent.ACTION_UP && code == talkKey) {
+                web.removeCallbacks(talkHeld);
+                talkKey = -1;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -380,8 +411,12 @@ public class MainActivity extends Activity {
             cloud = new CloudVoice(context, secrets, usage);
             wake = new LocalWake(context, cloud::micBusy, new LocalWake.Listener() {
                 @Override
-                public void heard(String text) {
-                    event("heard", "text", text);
+                public void heard(String text, String language) {
+                    try {
+                        callPage(0, new JSONObject().put("event", "heard").put("text", text).put("lang", language).toString());
+                    } catch (Exception e) {
+                        // nothing heard then
+                    }
                 }
 
                 @Override
@@ -394,6 +429,16 @@ public class MainActivity extends Activity {
                 }
             });
             audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        }
+
+        JSONObject wakeDiagnostics() {
+            return wake.diagnostics();
+        }
+
+        /** Extra wake words set on the phone page, separated by commas. */
+        @JavascriptInterface
+        public String getWakeWords() {
+            return secrets.load().optString("wakeWords", "");
         }
 
         void holdWake(boolean hold) {
@@ -584,7 +629,7 @@ public class MainActivity extends Activity {
 
         /**
          * Listens for the wake word with the recognizer of Android (see LocalWake). Every phrase arrives as event
-         * {event:"heard", text} with the guesses separated by " | ", the page decides whether it was the wake word.
+         * {event:"heard", text, lang} with the guesses separated by " | ", the page decides whether it was the wake word.
          * The state of the listener arrives as {event:"wakeStatus", state: ready|off|error, detail}.
          */
         @JavascriptInterface

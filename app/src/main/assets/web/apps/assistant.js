@@ -49,13 +49,33 @@
     return row[b.length];
   }
 
+  // letters only, without accents, so "Asistanım" and "asistanim" compare alike
+  function letters(text) {
+    return text.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+  }
+
+  /** Extra wake words from the phone page, read again for every phrase, at least 4 letters each. */
+  function extraWakeWords() {
+    const words = String((device && device.getWakeWords && device.getWakeWords()) || '');
+    return words.split(',').map(letters).filter((w) => w.length >= 4);
+  }
+
   /** The command after the wake word ('' when there is none), or null when the phrase did not start with it. */
   function wakeCommand(phrase) {
-    let words = phrase.trim().split(/[\s,.!?;:]+/).filter(Boolean);
+    const all = phrase.trim().split(/[\s,.!?;:]+/).filter(Boolean);
+    // own wake words: spelled almost the same, one letter off per five
+    for (const target of extraWakeWords()) {
+      for (let n = Math.min(4, all.length); n >= 1; n--) {
+        if (distance(letters(all.slice(0, n).join('')), target) <= Math.floor(target.length / 5)) {
+          return all.slice(n).join(' ');
+        }
+      }
+    }
+    let words = all;
     if (words.length > 1 && FILLER.test(words[0].toLowerCase())) {
       words = words.slice(1);
     }
-    // the first word carries the "dr", the phrase ends in the "d k" of "deck"
+    // "DriveDeck": the first word carries the "dr", the phrase ends in the "d k" of "deck"
     if (!words.length || !skeleton(words[0]).startsWith('dr')) {
       return null;
     }
@@ -941,12 +961,24 @@
       }
     } else if (e.event === 'heard') {
       // every phrase the recognizer of Android heard, with its guesses separated by " | "
+      // the wake word is listened for in English, a command in another language would arrive garbled,
+      // so then the command is asked for again and understood by OpenRouter
+      const sameLanguage = !e.lang || String(e.lang).startsWith(lang);
       for (const guess of String(e.text || '').split(' | ')) {
         const command = wakeCommand(guess);
         if (command !== null) {
-          window.core.assistant.open('wake', command);
+          window.core.assistant.open('wake', sameLanguage ? command : '');
           break;
         }
+      }
+    } else if (e.event === 'talkKey') {
+      // a held key or the voice key of the car: listen, end the recording early, or stop a running answer
+      if (busy) {
+        cancelled = true;
+      } else if (listening) {
+        device.stopListening();
+      } else {
+        window.core.assistant.open('wake', '');
       }
     } else if (e.event === 'unpaired') {
       writeHistory([]);

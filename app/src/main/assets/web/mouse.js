@@ -10,6 +10,8 @@
   const REPEAT_DELAY_MS = 150;
   const DOUBLE_MS = 350;
   const TOGGLE_MS = 1200;
+  // holding a key this long starts the assistant instead (see MainActivity.dispatchKeyEvent)
+  const TALK_MS = 3000;
   const SCROLL_PER_S = 900;
   const DIRECTIONS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
@@ -218,8 +220,9 @@
     }
   }
 
-  // with the mouse off, holding the centre key for a moment switches it on
-  let enableTimer = null;
+  // with the mouse off, holding the centre key for a moment switches it on when it is let go,
+  // holding it even longer starts the assistant instead
+  let enableDownAt = 0;
 
   function onKeyDown(e) {
     if (document.body.classList.contains('intro-open')) {
@@ -230,7 +233,7 @@
     }
     if (!enabled) {
       if (e.key === 'Enter' && !typing() && !e.repeat) {
-        enableTimer = setTimeout(() => core.setMouse(true), TOGGLE_MS);
+        enableDownAt = performance.now();
       }
       return;
     }
@@ -259,8 +262,12 @@
   }
 
   function onKeyUp(e) {
-    if (e.key === 'Enter') {
-      clearTimeout(enableTimer);
+    if (e.key === 'Enter' && enableDownAt) {
+      const held = performance.now() - enableDownAt;
+      enableDownAt = 0;
+      if (!enabled && held >= TOGGLE_MS && held < TALK_MS) {
+        core.setMouse(true);
+      }
     }
     if (!enabled) {
       return;

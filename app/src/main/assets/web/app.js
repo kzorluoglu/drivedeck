@@ -18,7 +18,8 @@
     doorsOpen: false,
     paint: readStored(PAINT_STORAGE_KEY, 'silver'),
     orbit: false,
-    fpsVisible: true,
+    // the frame counter is for debugging, hidden unless switched on in the settings
+    fpsVisible: readStored('fpsVisible', '0') === '1',
     eco: readStored(ECO_STORAGE_KEY, '1') === '1',
     vmouse: readStored('vmouse', '0') === '1',
     // above 5 km/h the browser, games and text input are locked, on by default
@@ -268,6 +269,8 @@
     }
   }, 500);
 
+  $('fps').hidden = !state.fpsVisible;
+
   // the voice of the navigation follows the app language from the start, not only after the assistant was opened
   if (device && device.setSpeechLanguage) {
     device.setSpeechLanguage(window.i18n.tag);
@@ -278,6 +281,7 @@
 
   const effects = {
     fpsVisible(on) {
+      store('fpsVisible', on ? '1' : '0');
       $('fps').hidden = !on;
     },
     driveLock(on) {

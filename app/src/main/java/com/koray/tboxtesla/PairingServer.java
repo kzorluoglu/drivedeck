@@ -57,12 +57,18 @@ class PairingServer {
     private final SecureRandom random = new SecureRandom();
 
     private ServerSocket server;
+    private volatile java.util.function.Supplier<JSONObject> wakeInfo;
 
     PairingServer(Context context, SecretStore store, Usage usage, Listener listener) {
         this.context = context;
         this.store = store;
         this.usage = usage;
         this.listener = listener;
+    }
+
+    /** What the wake word listener heard lately, shown on the phone page to find out why it does not wake. */
+    void setWakeInfo(java.util.function.Supplier<JSONObject> info) {
+        wakeInfo = info;
     }
 
     /**
@@ -276,6 +282,10 @@ class PairingServer {
         JSONObject data = store.load();
         state.put("ttsModel", data.optString("ttsModel", CloudVoice.DEFAULT_TTS_MODEL));
         state.put("ttsVoice", data.optString("ttsVoice", CloudVoice.DEFAULT_TTS_VOICE));
+        state.put("wakeWords", data.optString("wakeWords", ""));
+        if (wakeInfo != null) {
+            state.put("wake", wakeInfo.get());
+        }
         state.put("host", MdnsResponder.HOST + ":" + PORT);
         state.put("ip", localAddress() + ":" + PORT);
         return state;
@@ -328,6 +338,7 @@ class PairingServer {
         data.put("model", model.isEmpty() ? SecretStore.DEFAULT_MODEL : model);
         String ttsModel = input.optString("ttsModel", "").trim();
         data.put("ttsModel", ttsModel.isEmpty() ? CloudVoice.DEFAULT_TTS_MODEL : ttsModel);
+        data.put("wakeWords", input.optString("wakeWords", "").trim());
         String ttsVoice = input.optString("ttsVoice", "").trim();
         data.put("ttsVoice", ttsVoice.isEmpty() ? CloudVoice.DEFAULT_TTS_VOICE : ttsVoice);
 
